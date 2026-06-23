@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Rol {
+  ADMIN
+  OPERARIO
+  VENDEDOR
+  CLIENTE
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  EN_PRODUCCION
+  ENTREGADO
+  CANCELADO
+}
+
+enum RangoHorario {
+  H5_6
+  H7_8
+  H9_10
+  H10_12
+  H12_14
+  H14_16
+  H16_18
+  SIN_ESPECIFICAR
+}
+
+enum EstadoFactura {
+  PENDIENTE
+  PARCIALMENTE_COBRADA
+  COBRADA
+  ANULADA
+}
+
+enum TipoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+}
+
+enum EstadoFacturaProveedor {
+  PENDIENTE
+  PARCIALMENTE_PAGADA
+  PAGADA
+  VENCIDA
+}
+
+enum TipoAlerta {
+  PEDIDO_FUERA_HORARIO
+  PEDIDO_PROXIMO_LIMITE
+  DEUDA_ALTA
+  SISTEMA
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model Usuario {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  nombre       String
+  rol          Rol      @default(CLIENTE)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pedidosCreados    Pedido[]  @relation("pedidoCreador")
+  pedidosEditados   Pedido[]  @relation("pedidoEditor")
+  pagosRegistrados  Pago[]
+  pagosProveedor    PagoProveedor[]
+  clienteAsociado   Cliente?  @relation(fields: [clienteId], references: [id])
+  clienteId         String?   @unique
+
+  @@map("usuarios")
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String?  @unique
+  telefono  String?
+  direccion String?
+  estado    Boolean  @default(true)
+  notas     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuario   Usuario?
+  pedidos   Pedido[]
+  facturas  Factura[]
+  pagos     Pago[]
+
+  @@map("clientes")
+}
+
+model Categoria {
+  id          String     @id @default(cuid())
+  nombre      String     @unique
+  descripcion String?
+  orden       Int        @default(0)
+  activo      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  productos   Producto[]
+
+  @@map("categorias")
+}
+
+model Producto {
+  id          String    @id @default(cuid())
+  nombre      String
+  descripcion String?
+  categoriaId String
+  precio      Decimal   @db.Decimal(10, 2)
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  categoria   Categoria   @relation(fields: [categoriaId], references: [id])
+  pedidoItems PedidoItem[]
+
+  @@index([categoriaId])
+  @@index([activo, nombre])
+  @@map("productos")
+}
+
+model Pedido {
+  id              String       @id @default(cuid())
+  clienteId       String
+  usuarioCreadorId String
+  usuarioEditorId  String?
+  fechaEntrega    DateTime
+  rangoHorario    RangoHorario @default(SIN_ESPECIFICAR)
+  estado          EstadoPedido @default(PENDIENTE)
+  montoTotal      Decimal      @db.Decimal(10, 2)
+  notas           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  cliente         Cliente      @relation(fields: [clienteId], references: [id])
+  usuarioCreador  Usuario      @relation("pedidoCreador", fields: [usuarioCreadorId], references: [id])
+  usuarioEditor   Usuario?     @relation("pedidoEditor", fields: [usuarioEditorId], references: [id])
+  items           PedidoItem[]
+  factura         Factura?
+  alertas         Alerta[]
+
+  @@index([clienteId, estado, fechaEntrega])
+  @@index([fechaEntrega, estado])
+  @@index([rangoHorario, fechaEntrega])
+  @@map("pedidos")
+}
+
+model PedidoItem {
+  id             String   @id @default(cuid())
+  pedidoId       String
+  productoId     String
+  cantidad       Int
+  precioUnitario Decimal  @db.Decimal(10, 2)
+  subtotal       Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto       Producto @relation(fields: [productoId], references: [id])
+
+  @@index([pedidoId])
+  @@index([productoId])
+  @@map("pedido_items")
+}
+
+model Factura {
+  id          String        @id @default(cuid())
+  pedidoId    String        @unique
+  clienteId   String
+  fecha       DateTime      @default(now())
+  montoNeto   Decimal       @db.Decimal(10, 2)
+  montoIva    Decimal       @db.Decimal(10, 2)
+  montoTotal  Decimal       @db.Decimal(10, 2)
+  tasaIva     Decimal       @db.Decimal(5, 4) @default(0.21)
+  estado      EstadoFactura @default(PENDIENTE)
+  numero      Int           @unique @default(autoincrement())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  pedido      Pedido        @relation(fields: [pedidoId], references: [id])
+  cliente     Cliente       @relation(fields: [clienteId], references: [id])
+  pagos       Pago[]
+
+  @@index([clienteId, estado])
+  @@index([fecha])
+  @@map("facturas")
+}
+
+model Pago {
+  id               String    @id @default(cuid())
+  clienteId        String
+  facturaId        String?
+  monto            Decimal   @db.Decimal(10, 2)
+  tipoPago         TipoPago
+  fechaPago        DateTime  @default(now())
+  usuarioId        String
+  observaciones    String?
+  createdAt        DateTime  @default(now())
+
+  cliente          Cliente   @relation(fields: [clienteId], references: [id])
+  factura          Factura?  @relation(fields: [facturaId], references: [id])
+  usuario          Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@index([clienteId, fechaPago])
+  @@index([facturaId])
+  @@map("pagos")
+}
+
+model Alerta {
+  id        String     @id @default(cuid())
+  pedidoId  String?
+  tipo      TipoAlerta
+  mensaje   String
+  leido     Boolean    @default(false)
+  leidoAt   DateTime?
+  createdAt DateTime   @default(now())
+
+  pedido    Pedido?    @relation(fields: [pedidoId], references: [id])
+
+  @@index([leido, createdAt])
+  @@map("alertas")
+}
+
+model Proveedor {
+  id          String   @id @default(cuid())
+  nombre      String
+  contacto    String?
+  email       String?
+  telefono    String?
+  deudaActual Decimal  @db.Decimal(10, 2) @default(0)
+  notas       String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pagos              PagoProveedor[]
+  facturasProveedor  FacturaProveedor[]
+
+  @@map("proveedores")
+}
+
+model FacturaProveedor {
+  id                String                 @id @default(cuid())
+  numeroFactura     String
+  proveedorId       String
+  fechaEmision      DateTime
+  fechaVencimiento  DateTime?
+  montoNeto         Decimal                @db.Decimal(10, 2)
+  montoIva          Decimal                @db.Decimal(10, 2) @default(0)
+  montoTotal        Decimal                @db.Decimal(10, 2)
+  concepto          String
+  estado            EstadoFacturaProveedor @default(PENDIENTE)
+  observaciones     String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  proveedor         Proveedor              @relation(fields: [proveedorId], references: [id])
+  pagos             PagoProveedor[]
+
+  @@index([proveedorId, estado])
+  @@index([fechaEmision])
+  @@map("facturas_proveedores")
+}
+
+model PagoProveedor {
+  id                   String            @id @default(cuid())
+  proveedorId          String
+  facturaProveedorId   String?
+  monto                Decimal           @db.Decimal(10, 2)
+  tipoPago             TipoPago
+  fechaPago            DateTime          @default(now())
+  usuarioId            String
+  concepto             String?
+  referencia           String?
+  observaciones        String?
+  createdAt            DateTime          @default(now())
+
+  proveedor            Proveedor         @relation(fields: [proveedorId], references: [id])
+  facturaProveedor     FacturaProveedor? @relation(fields: [facturaProveedorId], references: [id])
+  usuario              Usuario           @relation(fields: [usuarioId], references: [id])
+
+  @@index([proveedorId, fechaPago])
+  @@index([facturaProveedorId])
+  @@map("pagos_proveedores")
+}
+
+model ConfiguracionSistema {
+  id        String   @id @default(cuid())
+  clave     String   @unique
+  valor     String
+  updatedAt DateTime @updatedAt
+
+  @@map("configuracion_sistema")
+}
