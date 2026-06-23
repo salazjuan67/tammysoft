@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { DollarSign, CreditCard, Wallet, TrendingDown, Plus, Search } from "lucide-react";
+import ResumenDineroDisponible from "@/components/dashboard/ResumenDineroDisponible";
 
 interface ResumenFinanciero {
   totalEfectivo: number;
@@ -153,10 +154,35 @@ export default function CobranzaPage() {
     }
   }
 
+  const [tabActivo, setTabActivo] = useState<"cobranza" | "dinero">("cobranza");
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Cobranza</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Cobranza</h1>
+      </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setTabActivo("cobranza")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tabActivo === "cobranza" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          💳 Deuda de Clientes
+        </button>
+        <button
+          onClick={() => setTabActivo("dinero")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tabActivo === "dinero" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          💰 Dinero Disponible
+        </button>
+      </div>
+
+      {tabActivo === "dinero" && (
+        <ResumenDineroDisponible autoRefresh />
+      )}
+
+      {tabActivo === "cobranza" && (<>
       {/* Filtros */}
       <Card>
         <CardContent className="pt-4">
@@ -409,6 +435,7 @@ export default function CobranzaPage() {
           </div>
         </DialogContent>
       </Dialog>
+      </>)}
     </div>
   );
 }

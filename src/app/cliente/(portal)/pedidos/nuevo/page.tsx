@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import SelectorProductos from "@/components/cliente/SelectorProductos";
 import ResumenPedido, { type ItemCarrito } from "@/components/cliente/ResumenPedido";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, RefreshCw } from "lucide-react";
 
 const RANGOS = [
   { value: "SIN_ESPECIFICAR", label: "Sin especificar" },
@@ -28,28 +28,63 @@ function getFechaMaximaString() {
   return d.toISOString().split("T")[0];
 }
 
-export default function NuevoPedidoPage() {
+function NuevoPedidoInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const repetirId = searchParams.get("repetir");
+
   const [paso, setPaso] = useState<1 | 2>(1);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [rangoHorario, setRangoHorario] = useState("SIN_ESPECIFICAR");
   const [notas, setNotas] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cargandoRepetir, setCargandoRepetir] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [advertencias, setAdvertencias] = useState<string[]>([]);
 
-  // Load pre-filled cart from "Repetir pedido"
+  // Load from URL param ?repetir=ID
   useEffect(() => {
-    try {
-      const guardado = sessionStorage.getItem("tammy_carrito_inicial");
-      if (guardado) {
-        setCarrito(JSON.parse(guardado));
-        sessionStorage.removeItem("tammy_carrito_inicial");
-      }
-    } catch {
-      // ignore
+    if (repetirId) {
+      setCargandoRepetir(true);
+      fetch(`/api/cliente/pedidos/${repetirId}`)
+        .then(r => r.json())
+        .then(json => {
+          if (json.data) {
+            const pedido = json.data;
+            const warns: string[] = [];
+            const items: ItemCarrito[] = (pedido.items ?? [])
+              .filter((item: { productoId: string; cantidad: number; precioUnitario: number; producto?: { nombre: string; activo?: boolean } }) => {
+                if (item.producto && item.producto.activo === false) {
+                  warns.push(`"${item.producto.nombre}" ya no está disponible y fue omitido.`);
+                  return false;
+                }
+                return true;
+              })
+              .map((item: { productoId: string; cantidad: number; precioUnitario: number; producto?: { nombre: string } }) => ({
+                productoId: item.productoId,
+                nombre: item.producto?.nombre ?? item.productoId,
+                precio: Number(item.precioUnitario),
+                cantidad: item.cantidad,
+              }));
+            setCarrito(items);
+            setRangoHorario(pedido.rangoHorario ?? "SIN_ESPECIFICAR");
+            setAdvertencias(warns);
+          }
+        })
+        .catch(() => setError("No se pudo cargar el pedido anterior."))
+        .finally(() => setCargandoRepetir(false));
+    } else {
+      // sessionStorage fallback (keep compatibility)
+      try {
+        const guardado = sessionStorage.getItem("tammy_carrito_inicial");
+        if (guardado) {
+          setCarrito(JSON.parse(guardado));
+          sessionStorage.removeItem("tammy_carrito_inicial");
+        }
+      } catch { /* ignore */ }
     }
-  }, []);
+  }, [repetirId]);
 
   async function confirmar() {
     if (!fechaEntrega) { setError("Seleccioná una fecha de entrega."); return; }
@@ -78,6 +113,10 @@ export default function NuevoPedidoPage() {
     }
   }
 
+  if (cargandoRepetir) {
+    return <div className="py-20 text-center text-gray-400 text-sm">Cargando pedido anterior...</div>;
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -86,10 +125,30 @@ export default function NuevoPedidoPage() {
           <ArrowLeft className="h-5 w-5 text-gray-600" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Nuevo Pedido</h1>
-          <p className="text-xs text-gray-400">Paso {paso} de 2</p>
+          {repetirId ? (
+            <>
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-violet-500" />
+                <h1 className="text-xl font-bold text-gray-900">Repetir Pedido</h1>
+              </div>
+              <p className="text-xs text-gray-400">Productos pre-cargados · elegí nueva fecha</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold text-gray-900">Nuevo Pedido</h1>
+              <p className="text-xs text-gray-400">Paso {paso} de 2</p>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Advertencias de productos descontinuados */}
+      {advertencias.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 space-y-1">
+          <p className="font-medium">Atención:</p>
+          {advertencias.map((w, i) => <p key={i}>• {w}</p>)}
+        </div>
+      )}
 
       {/* Progress */}
       <div className="flex gap-2">
@@ -102,7 +161,9 @@ export default function NuevoPedidoPage() {
         <div className="lg:col-span-2 space-y-5">
           {paso === 1 && (
             <div className="bg-white rounded-2xl border border-pink-100 shadow-sm p-5">
-              <h2 className="font-semibold text-gray-900 mb-4">1. Seleccioná los productos</h2>
+              <h2 className="font-semibold text-gray-900 mb-4">
+                1. {repetirId ? "Revisá y editá los productos" : "Seleccioná los productos"}
+              </h2>
               <SelectorProductos carrito={carrito} onCambio={setCarrito} />
               <div className="mt-5 flex justify-end">
                 <button
@@ -121,7 +182,9 @@ export default function NuevoPedidoPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de entrega *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha de entrega * {repetirId && <span className="text-xs text-amber-600">(obligatorio elegir nueva fecha)</span>}
+                  </label>
                   <input
                     type="date"
                     value={fechaEntrega}
@@ -190,5 +253,13 @@ export default function NuevoPedidoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NuevoPedidoPage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-gray-400 text-sm">Cargando...</div>}>
+      <NuevoPedidoInner />
+    </Suspense>
   );
 }

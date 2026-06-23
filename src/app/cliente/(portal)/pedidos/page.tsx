@@ -70,28 +70,10 @@ export default function MisPedidosPage() {
     setCancelando(null);
   }
 
-  async function repetir(id: string) {
+  function repetir(id: string) {
     setRepitiendo(id);
-    try {
-      const res = await fetch(`/api/cliente/pedidos/${id}`);
-      const json = await res.json();
-      if (!res.ok || !json.data) { alert("No se pudo cargar el pedido."); return; }
-
-      const pedido = json.data;
-      // Build cart from existing items
-      const carrito = (pedido.items ?? []).map((item: { productoId: string; cantidad: number; precioUnitario: number; producto: { nombre: string } }) => ({
-        productoId: item.productoId,
-        nombre: item.producto?.nombre ?? item.productoId,
-        precio: Number(item.precioUnitario),
-        cantidad: item.cantidad,
-      }));
-
-      // Store in sessionStorage so the new-order page picks it up
-      sessionStorage.setItem("tammy_carrito_inicial", JSON.stringify(carrito));
-      router.push("/cliente/pedidos/nuevo");
-    } finally {
-      setRepitiendo(null);
-    }
+    router.push(`/cliente/pedidos/nuevo?repetir=${id}`);
+    setRepitiendo(null);
   }
 
   function limpiarFiltros() {

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Search, Edit2, Save, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit2, Save, RefreshCw, TrendingUp, TrendingDown, ClipboardPaste } from "lucide-react";
 import type { Categoria } from "@/types";
 
 interface ProductoConCategoria {
@@ -34,6 +34,10 @@ export default function ProductosAdminPage() {
   const [modoPreciosMasivos, setModoPreciosMasivos] = useState(false);
   const [preciosEditados, setPreciosEditados] = useState<Record<string, string>>({});
   const [savingMasivo, setSavingMasivo] = useState(false);
+  const [porcentaje, setPorcentaje] = useState("5");
+  const [pastText, setPastText] = useState("");
+  const [pastPreview, setPastPreview] = useState<{ nombre: string; precioAnterior: number; precioNuevo: number; encontrado: boolean; productoId: string | null }[]>([]);
+  const [showPaste, setShowPaste] = useState(false);
 
   // Form fields
   const [nombre, setNombre] = useState("");
@@ -138,9 +142,73 @@ export default function ProductosAdminPage() {
     }
   }
 
-  const productosFiltrados = productos.filter((p) =>
+  function aplicarPorcentaje(signo: 1 | -1) {
+    const pct = parseFloat(porcentaje) / 100;
+    if (!pct || pct <= 0) return;
+    const nuevos: Record<string, string> = {};
+    productosFiltradosCalc.forEach((p) => {
+      const base = parseFloat(preciosEditados[p.id] ?? String(p.precio));
+      const nuevo = base * (1 + signo * pct);
+      nuevos[p.id] = nuevo.toFixed(2);
+    });
+    setPreciosEditados((prev) => ({ ...prev, ...nuevos }));
+  }
+
+  function analizarPaste() {
+    const lineas = pastText.split("\n").map(l => l.trim()).filter(Boolean);
+    const preview = lineas.map(linea => {
+      // Acepta: "nombre,precio" | "nombre precio" | "nombre: precio" | "$precio"
+      const match = linea.match(/^(.+?)[\s,:\t]+\$?(\d+(?:[.,]\d+)?)$/) ??
+                    linea.match(/^\$?(\d+(?:[.,]\d+)?)$/);
+      if (!match) return null;
+      const precioStr = match[2] ?? match[1];
+      const nombre = match[2] ? match[1].trim() : "";
+      const precioNuevo = parseFloat(precioStr.replace(",", "."));
+      if (!precioNuevo || precioNuevo <= 0) return null;
+
+      const encontrado = nombre
+        ? productos.find(p => p.nombre.toLowerCase().includes(nombre.toLowerCase()))
+        : null;
+
+      return {
+        nombre: encontrado?.nombre ?? nombre,
+        precioAnterior: encontrado ? Number(encontrado.precio) : 0,
+        precioNuevo,
+        encontrado: !!encontrado,
+        productoId: encontrado?.id ?? null,
+      };
+    }).filter(Boolean) as { nombre: string; precioAnterior: number; precioNuevo: number; encontrado: boolean; productoId: string | null }[];
+
+    setPastPreview(preview);
+  }
+
+  async function guardarDesdeClipboard() {
+    const items = pastPreview
+      .filter(p => p.encontrado && p.productoId)
+      .map(p => ({ productoId: p.productoId!, precio: p.precioNuevo }));
+    if (items.length === 0) { toast({ title: "Sin productos reconocidos", variant: "destructive" }); return; }
+    setSavingMasivo(true);
+    const res = await fetch("/api/productos/precios-masivos", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const json = await res.json();
+    setSavingMasivo(false);
+    if (res.ok) {
+      toast({ title: json.message });
+      setPastText(""); setPastPreview([]); setShowPaste(false);
+      cargar();
+    } else {
+      toast({ title: "Error", description: json.error, variant: "destructive" });
+    }
+  }
+
+  const productosFiltradosCalc = productos.filter((p) =>
     search ? p.nombre.toLowerCase().includes(search.toLowerCase()) : true
   );
+
+  const productosFiltrados = productosFiltradosCalc;
 
   return (
     <div className="space-y-6">
@@ -174,10 +242,81 @@ export default function ProductosAdminPage() {
 
       {modoPreciosMasivos && (
         <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 space-y-4">
             <p className="text-sm text-blue-700 font-medium">
-              Modo precios masivos: modificá los precios directamente en la tabla y guardá todos a la vez.
+              Modo precios masivos: editá directamente en la tabla o usá las herramientas rápidas.
             </p>
+            {/* % rápido */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-blue-700 font-medium">Ajuste % a productos filtrados:</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" min="0.1" max="100" step="0.1"
+                  className="w-20 h-8 text-sm"
+                  value={porcentaje}
+                  onChange={e => setPorcentaje(e.target.value)}
+                />
+                <span className="text-sm text-blue-700">%</span>
+              </div>
+              <Button size="sm" variant="outline" className="text-green-700 border-green-300 h-8" onClick={() => aplicarPorcentaje(1)}>
+                <TrendingUp className="h-3.5 w-3.5 mr-1" /> Aumentar
+              </Button>
+              <Button size="sm" variant="outline" className="text-red-700 border-red-300 h-8" onClick={() => aplicarPorcentaje(-1)}>
+                <TrendingDown className="h-3.5 w-3.5 mr-1" /> Disminuir
+              </Button>
+              <Button size="sm" variant="outline" className="text-violet-700 border-violet-300 h-8" onClick={() => setShowPaste(!showPaste)}>
+                <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Pegar lista
+              </Button>
+            </div>
+
+            {/* Copy-paste section */}
+            {showPaste && (
+              <div className="space-y-3 border-t border-blue-200 pt-3">
+                <p className="text-xs text-blue-600">Pegá los precios (formato: <code className="bg-white px-1 rounded">Producto, precio</code> — una línea por producto):</p>
+                <textarea
+                  value={pastText}
+                  onChange={e => { setPastText(e.target.value); setPastPreview([]); }}
+                  rows={6}
+                  placeholder={"Mini Torta Frutos, 15\nMousse Chocolate, 12\nBrownie, 10"}
+                  className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 font-mono resize-none bg-white"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={analizarPaste}>Analizar</Button>
+                  {pastPreview.length > 0 && (
+                    <Button size="sm" onClick={guardarDesdeClipboard} disabled={savingMasivo}>
+                      {savingMasivo ? "Guardando..." : `Guardar ${pastPreview.filter(p => p.encontrado).length} precios`}
+                    </Button>
+                  )}
+                </div>
+                {pastPreview.length > 0 && (
+                  <div className="rounded-lg border border-blue-200 overflow-hidden text-sm">
+                    <table className="w-full">
+                      <thead><tr className="bg-blue-100 text-xs text-blue-700">
+                        <th className="text-left px-3 py-2">Producto</th>
+                        <th className="text-right px-3 py-2">Anterior</th>
+                        <th className="text-right px-3 py-2">Nuevo</th>
+                        <th className="text-center px-3 py-2">Estado</th>
+                      </tr></thead>
+                      <tbody>
+                        {pastPreview.map((p, i) => (
+                          <tr key={i} className={`border-t border-blue-100 ${p.encontrado ? "bg-white" : "bg-red-50"}`}>
+                            <td className="px-3 py-2">{p.nombre}</td>
+                            <td className="px-3 py-2 text-right text-gray-400">{p.encontrado ? formatCurrency(p.precioAnterior) : "—"}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatCurrency(p.precioNuevo)}</td>
+                            <td className="px-3 py-2 text-center">
+                              {p.encontrado
+                                ? <Badge variant="success" className="text-xs">✓</Badge>
+                                : <Badge variant="destructive" className="text-xs">No encontrado</Badge>
+                              }
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

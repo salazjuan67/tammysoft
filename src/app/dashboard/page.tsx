@@ -4,6 +4,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import ResumenDineroDisponible from "@/components/dashboard/ResumenDineroDisponible";
 import {
   ShoppingCart, DollarSign, AlertCircle, TrendingUp,
   Clock, AlertTriangle, ArrowRight, TrendingDown, Minus,
@@ -282,6 +283,12 @@ export default async function DashboardPage() {
             <p className="text-xs text-gray-500 mt-1">más de 30 días sin cobrar</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Caja y Banco */}
+      <div>
+        <h2 className="text-base font-semibold text-gray-700 mb-3">Dinero disponible (acumulado)</h2>
+        <ResumenDineroDisponible compact autoRefresh />
       </div>
 
       {/* Bottom section: Últimos pedidos + Clientes top */}
