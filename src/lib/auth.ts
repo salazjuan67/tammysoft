@@ -40,7 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
 
-        // Staff (ADMIN, OPERARIO, VENDEDOR) require password
+        // Staff require password
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const passwordValida = await bcrypt.compare(parsed.data.password, usuario.passwordHash);

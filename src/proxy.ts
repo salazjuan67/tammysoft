@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const STAFF_ROLES = ["ADMIN", "OPERARIO", "VENDEDOR"];
 const CLIENT_ROLES = ["CLIENTE"];
 
-const publicRoutes = ["/auth/login", "/auth/error", "/cliente/login"];
+const publicRoutes = ["/auth/login", "/auth/error", "/cliente/login", "/demo-login"];
 const apiPublicRoutes = ["/api/auth"];
 
 // Role-based route access for staff dashboard

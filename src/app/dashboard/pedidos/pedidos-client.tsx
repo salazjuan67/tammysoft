@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate, getRangoLabel, RANGOS_HORARIO, puedeEditarPedido } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Search, Eye, Edit2, Trash2, Copy, Printer, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { FormularioPedido } from "@/components/forms/formulario-pedido";
 import type { Cliente, Categoria, Producto } from "@/types";
 
@@ -36,12 +37,23 @@ interface PedidosClientProps {
   userId: string;
 }
 
+const ESTADOS_DISPONIBLES = [
+  { value: "PENDIENTE", label: "Pendiente" },
+  { value: "EN_PRODUCCION", label: "En producción" },
+  { value: "ENTREGADO", label: "Entregado" },
+  { value: "CANCELADO", label: "Cancelado" },
+];
+
 const estadoBadge: Record<string, React.ReactNode> = {
   PENDIENTE: <Badge variant="warning">Pendiente</Badge>,
   EN_PRODUCCION: <Badge variant="info">En producción</Badge>,
   ENTREGADO: <Badge variant="success">Entregado</Badge>,
   CANCELADO: <Badge variant="secondary">Cancelado</Badge>,
 };
+
+function getHoy() {
+  return new Date().toISOString().split("T")[0];
+}
 
 export function PedidosClient({ clientes, categorias, userRol }: PedidosClientProps) {
   const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
@@ -54,9 +66,18 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [filtroCliente, setFiltroCliente] = useState("");
 
+  // Filtros de fecha — por defecto hoy
+  const [fechaDesde, setFechaDesde] = useState(getHoy);
+  const [fechaHasta, setFechaHasta] = useState(getHoy);
+
   const [showForm, setShowForm] = useState(false);
   const [pedidoEditar, setPedidoEditar] = useState<string | null>(null);
   const [pedidoVer, setPedidoVer] = useState<PedidoResumen | null>(null);
+
+  // IVA modal para cambio de estado a ENTREGADO
+  const [ivaModal, setIvaModal] = useState<{ pedidoId: string; nuevoEstado: string } | null>(null);
+  const [ivaSeleccionado, setIvaSeleccionado] = useState<0 | 0.21>(0);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
 
   const cargarPedidos = useCallback(async () => {
     setLoading(true);
@@ -66,6 +87,8 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
         pageSize: String(pageSize),
         ...(filtroEstado !== "todos" && { estado: filtroEstado }),
         ...(filtroCliente && { clienteId: filtroCliente }),
+        ...(fechaDesde && { desde: fechaDesde }),
+        ...(fechaHasta && { hasta: fechaHasta }),
       });
 
       const res = await fetch(`/api/pedidos?${params}`);
@@ -75,7 +98,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
     } finally {
       setLoading(false);
     }
-  }, [page, filtroEstado, filtroCliente]);
+  }, [page, filtroEstado, filtroCliente, fechaDesde, fechaHasta]);
 
   useEffect(() => { cargarPedidos(); }, [cargarPedidos]);
 
@@ -84,6 +107,52 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       ? p.cliente.nombre.toLowerCase().includes(search.toLowerCase())
       : true
   );
+
+  function limpiarFechas() {
+    setFechaDesde("");
+    setFechaHasta("");
+    setPage(1);
+  }
+
+  function verTodos() {
+    limpiarFechas();
+  }
+
+  // Iniciar cambio de estado
+  function iniciarCambioEstado(pedidoId: string, nuevoEstado: string) {
+    if (nuevoEstado === "ENTREGADO") {
+      setIvaSeleccionado(0);
+      setIvaModal({ pedidoId, nuevoEstado });
+    } else {
+      ejecutarCambioEstado(pedidoId, nuevoEstado, 0);
+    }
+  }
+
+  async function ejecutarCambioEstado(pedidoId: string, nuevoEstado: string, tasaIva: number) {
+    setCambiandoEstado(true);
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoId}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: nuevoEstado, tasaIva }),
+      });
+      if (res.ok) {
+        toast({ title: "Estado actualizado" });
+        cargarPedidos();
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", description: err.error, variant: "destructive" });
+      }
+    } finally {
+      setCambiandoEstado(false);
+    }
+  }
+
+  async function confirmarEntrega() {
+    if (!ivaModal) return;
+    await ejecutarCambioEstado(ivaModal.pedidoId, "ENTREGADO", ivaSeleccionado);
+    setIvaModal(null);
+  }
 
   async function cancelarPedido(id: string) {
     if (!confirm("¿Confirmás cancelar este pedido?")) return;
@@ -97,25 +166,21 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
     }
   }
 
-  async function repetirPedido(id: string) {
-    const res = await fetch(`/api/pedidos/${id}`);
-    const json = await res.json();
-    if (res.ok) {
-      setPedidoEditar(`copy:${id}`);
-      setShowForm(true);
-    } else {
-      toast({ title: "Error", description: json.error, variant: "destructive" });
-    }
-  }
-
   const totalPages = Math.ceil(total / pageSize);
+  const esAdmin = userRol === "ADMIN" || userRol === "OPERARIO";
+  const hayFiltroFecha = fechaDesde || fechaHasta;
 
   return (
     <div className="space-y-6">
+      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-          <p className="text-gray-500 text-sm">{total} pedidos en total</p>
+          <p className="text-gray-500 text-sm">
+            {hayFiltroFecha
+              ? `${total} pedidos${fechaDesde === fechaHasta && fechaDesde ? ` del ${formatDate(fechaDesde)}` : ""}`
+              : `${total} pedidos en total`}
+          </p>
         </div>
         <Button onClick={() => { setPedidoEditar(null); setShowForm(true); }}>
           <Plus className="h-4 w-4" />
@@ -126,41 +191,82 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       {/* Filtros */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar por cliente..."
-                className="pl-9"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            {userRol !== "CLIENTE" && (
-              <Select value={filtroCliente} onValueChange={setFiltroCliente}>
-                <SelectTrigger className="w-full sm:w-52">
-                  <SelectValue placeholder="Todos los clientes" />
+          <div className="flex flex-col gap-3">
+            {/* Fila 1: búsqueda + cliente + estado */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar por cliente..."
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              {userRol !== "CLIENTE" && (
+                <Select value={filtroCliente} onValueChange={(v) => { setFiltroCliente(v); setPage(1); }}>
+                  <SelectTrigger className="w-full sm:w-52">
+                    <SelectValue placeholder="Todos los distribuidores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los distribuidores</SelectItem>
+                    {clientes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Select value={filtroEstado} onValueChange={(v) => { setFiltroEstado(v); setPage(1); }}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los clientes</SelectItem>
-                  {clientes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                  ))}
+                  <SelectItem value="todos">Todos los estados</SelectItem>
+                  <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                  <SelectItem value="EN_PRODUCCION">En producción</SelectItem>
+                  <SelectItem value="ENTREGADO">Entregado</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
-            )}
-            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los estados</SelectItem>
-                <SelectItem value="PENDIENTE">Pendiente</SelectItem>
-                <SelectItem value="EN_PRODUCCION">En producción</SelectItem>
-                <SelectItem value="ENTREGADO">Entregado</SelectItem>
-                <SelectItem value="CANCELADO">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
+            </div>
+
+            {/* Fila 2: filtro de fecha */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-gray-600 whitespace-nowrap">Desde</Label>
+                <Input
+                  type="date"
+                  className="w-40"
+                  value={fechaDesde}
+                  onChange={(e) => { setFechaDesde(e.target.value); setPage(1); }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-gray-600 whitespace-nowrap">Hasta</Label>
+                <Input
+                  type="date"
+                  className="w-40"
+                  value={fechaHasta}
+                  onChange={(e) => { setFechaHasta(e.target.value); setPage(1); }}
+                />
+              </div>
+              {hayFiltroFecha && (
+                <Button variant="ghost" size="sm" onClick={verTodos} className="text-gray-500 gap-1">
+                  <X className="h-3 w-3" />
+                  Ver todos
+                </Button>
+              )}
+              {!hayFiltroFecha && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setFechaDesde(getHoy()); setFechaHasta(getHoy()); setPage(1); }}
+                  className="text-gray-600"
+                >
+                  Hoy
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -173,14 +279,19 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           ) : filteredPedidos.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               <p className="font-medium">No hay pedidos</p>
-              <p className="text-sm mt-1">Creá el primer pedido con el botón de arriba</p>
+              {hayFiltroFecha && (
+                <p className="text-sm mt-1">
+                  No hay pedidos para este período.{" "}
+                  <button onClick={verTodos} className="text-pink-600 underline">Ver todos</button>
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Distribuidor</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha entrega</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Horario</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
@@ -196,6 +307,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                       new Date(pedido.createdAt)
                     );
                     const esCancelado = pedido.estado === "CANCELADO";
+                    const esEntregado = pedido.estado === "ENTREGADO";
                     return (
                       <tr key={pedido.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900">{pedido.cliente.nombre}</td>
@@ -205,7 +317,29 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatCurrency(Number(pedido.montoTotal))}
                         </td>
-                        <td className="px-4 py-3">{estadoBadge[pedido.estado]}</td>
+
+                        {/* Estado — Select para admin/operario, Badge para el resto */}
+                        <td className="px-4 py-3">
+                          {esAdmin && !esCancelado && !esEntregado ? (
+                            <Select
+                              value={pedido.estado}
+                              onValueChange={(v) => iniciarCambioEstado(pedido.id, v)}
+                            >
+                              <SelectTrigger className="h-8 w-40 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ESTADOS_DISPONIBLES.filter(e => e.value !== "CANCELADO").map((e) => (
+                                  <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            estadoBadge[pedido.estado]
+                          )}
+                        </td>
+
+                        {/* Acciones simplificadas */}
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <Button
@@ -216,7 +350,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {!esCancelado && (userRol === "ADMIN" || puedeEditar) && (
+                            {!esCancelado && !esEntregado && (userRol === "ADMIN" || puedeEditar) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -226,23 +360,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Repetir pedido"
-                              onClick={() => repetirPedido(pedido.id)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Imprimir"
-                              onClick={() => window.print()}
-                            >
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                            {!esCancelado && (userRol === "ADMIN" || puedeEditar) && (
+                            {!esCancelado && !esEntregado && (userRol === "ADMIN" || puedeEditar) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -291,7 +409,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           {pedidoVer && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-gray-500">Cliente:</span> <span className="font-medium">{pedidoVer.cliente.nombre}</span></div>
+                <div><span className="text-gray-500">Distribuidor:</span> <span className="font-medium">{pedidoVer.cliente.nombre}</span></div>
                 <div><span className="text-gray-500">Estado:</span> {estadoBadge[pedidoVer.estado]}</div>
                 <div><span className="text-gray-500">Entrega:</span> <span className="font-medium">{formatDate(pedidoVer.fechaEntrega)}</span></div>
                 <div><span className="text-gray-500">Horario:</span> <span className="font-medium">{getRangoLabel(pedidoVer.rangoHorario)}</span></div>
@@ -309,23 +427,18 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
         </DialogContent>
       </Dialog>
 
-      {/* Modal formulario */}
+      {/* Modal formulario nuevo/editar */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              {pedidoEditar
-                ? pedidoEditar.startsWith("copy:")
-                  ? "Repetir pedido"
-                  : "Editar pedido"
-                : "Nuevo pedido"}
+              {pedidoEditar ? "Editar pedido" : "Nuevo pedido"}
             </DialogTitle>
           </DialogHeader>
           <FormularioPedido
             clientes={clientes}
             categorias={categorias}
-            pedidoId={pedidoEditar && !pedidoEditar.startsWith("copy:") ? pedidoEditar : undefined}
-            copiarDePedidoId={pedidoEditar?.startsWith("copy:") ? pedidoEditar.replace("copy:", "") : undefined}
+            pedidoId={pedidoEditar ?? undefined}
             onSuccess={() => {
               setShowForm(false);
               setPedidoEditar(null);
@@ -334,6 +447,51 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
             onCancel={() => { setShowForm(false); setPedidoEditar(null); }}
             userRol={userRol}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal IVA para ENTREGADO */}
+      <Dialog open={!!ivaModal} onOpenChange={() => setIvaModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Marcar como Entregado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600">
+              Al marcar como entregado se generará la factura automáticamente.
+              ¿El pedido incluye IVA?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIvaSeleccionado(0)}
+                className={`flex-1 rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
+                  ivaSeleccionado === 0
+                    ? "border-pink-600 bg-pink-50 text-pink-700"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                Sin IVA
+                <span className="block text-xs font-normal opacity-70">Factura sin impuesto</span>
+              </button>
+              <button
+                onClick={() => setIvaSeleccionado(0.21)}
+                className={`flex-1 rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
+                  ivaSeleccionado === 0.21
+                    ? "border-pink-600 bg-pink-50 text-pink-700"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                Con IVA 21%
+                <span className="block text-xs font-normal opacity-70">Factura con impuesto</span>
+              </button>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIvaModal(null)}>Cancelar</Button>
+              <Button onClick={confirmarEntrega} disabled={cambiandoEstado}>
+                {cambiandoEstado ? "Guardando..." : "Confirmar entrega"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
