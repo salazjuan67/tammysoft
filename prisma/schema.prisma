@@ -72,12 +72,13 @@ model Usuario {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  pedidosCreados    Pedido[]  @relation("pedidoCreador")
-  pedidosEditados   Pedido[]  @relation("pedidoEditor")
-  pagosRegistrados  Pago[]
-  pagosProveedor    PagoProveedor[]
-  clienteAsociado   Cliente?  @relation(fields: [clienteId], references: [id])
-  clienteId         String?   @unique
+  pedidosCreados      Pedido[]             @relation("pedidoCreador")
+  pedidosEditados     Pedido[]             @relation("pedidoEditor")
+  pagosRegistrados    Pago[]
+  pagosProveedor      PagoProveedor[]
+  clienteAsociado     Cliente?             @relation(fields: [clienteId], references: [id])
+  clienteId           String?              @unique
+  resetTokens         PasswordResetToken[]
 
   @@map("usuarios")
 }
@@ -296,6 +297,21 @@ model PagoProveedor {
   @@index([proveedorId, fechaPago])
   @@index([facturaProveedorId])
   @@map("pagos_proveedores")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  usuarioId String
+  expiresAt DateTime
+  usado     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([usuarioId])
+  @@map("password_reset_tokens")
 }
 
 model ConfiguracionSistema {

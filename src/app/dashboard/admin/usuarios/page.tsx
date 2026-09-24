@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Edit2 } from "lucide-react";
+import { Plus, Edit2, Mail, Loader2 } from "lucide-react";
 
 interface UsuarioSimple {
   id: string;
@@ -45,6 +45,7 @@ export default function UsuariosPage() {
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("VENDEDOR");
   const [saving, setSaving] = useState(false);
+  const [enviandoMail, setEnviandoMail] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -66,6 +67,22 @@ export default function UsuariosPage() {
     setEditando(u);
     setNombre(u.nombre); setEmail(u.email); setPassword(""); setRol(u.rol);
     setShowForm(true);
+  }
+
+  async function enviarMailRecuperacion(usuario: UsuarioSimple) {
+    if (!confirm(`¿Enviar mail de recuperación de contraseña a ${usuario.email}?`)) return;
+    setEnviandoMail(usuario.id);
+    try {
+      const res = await fetch(`/api/usuarios/${usuario.id}/reset-password`, { method: "POST" });
+      const json = await res.json();
+      if (res.ok) {
+        toast({ title: "✅ Mail enviado", description: json.message });
+      } else {
+        toast({ title: "Error", description: json.error, variant: "destructive" });
+      }
+    } finally {
+      setEnviandoMail(null);
+    }
   }
 
   async function guardar() {
@@ -123,9 +140,23 @@ export default function UsuariosPage() {
                         <Badge variant={u.activo ? "success" : "secondary"}>{u.activo ? "Activo" : "Inactivo"}</Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => abrirEditar(u)}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Enviar mail de recuperación de contraseña"
+                            onClick={() => enviarMailRecuperacion(u)}
+                            disabled={enviandoMail === u.id || !u.activo}
+                          >
+                            {enviandoMail === u.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Mail className="h-4 w-4 text-pink-500" />
+                            }
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Editar usuario" onClick={() => abrirEditar(u)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
