@@ -70,6 +70,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
   async function cargarPedidos(fechaStr: string) {
     setLoading(true);
     try {
+      // Pendientes: filtrar por fechaEntrega (aún no tienen fechaProduccion asignada)
       const inicio = new Date(fechaStr);
       inicio.setHours(0, 0, 0, 0);
       const fin = new Date(fechaStr);
@@ -77,7 +78,8 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
 
       const [resPend, resEnProd] = await Promise.all([
         fetch(`/api/pedidos?desde=${inicio.toISOString()}&hasta=${fin.toISOString()}&estado=PENDIENTE&pageSize=100&includeItems=true`),
-        fetch(`/api/pedidos?desde=${inicio.toISOString()}&hasta=${fin.toISOString()}&estado=EN_PRODUCCION&pageSize=100&includeItems=true`),
+        // En producción: filtrar por fechaProduccion asignada
+        fetch(`/api/pedidos?desdeProduccion=${fechaStr}&hastaProduccion=${fechaStr}&estado=EN_PRODUCCION&pageSize=100&includeItems=true`),
       ]);
       const [jsonPend, jsonEnProd] = await Promise.all([resPend.json(), resEnProd.json()]);
       const combined = [...(jsonPend.data ?? []), ...(jsonEnProd.data ?? [])];

@@ -6,6 +6,8 @@ const estadoSchema = z.object({
   estado: z.enum(["PENDIENTE", "EN_PRODUCCION", "ENTREGADO", "CANCELADO"]),
   // IVA rate for invoice generation (only used when estado = ENTREGADO)
   tasaIva: z.number().min(0).max(1).optional().default(0),
+  // Production date (only used when estado = EN_PRODUCCION)
+  fechaProduccion: z.string().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = estadoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { estado, tasaIva } = parsed.data;
+  const { estado, tasaIva, fechaProduccion } = parsed.data;
 
   const pedido = await db.pedido.findUnique({
     where: { id },
@@ -34,7 +36,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const result = await db.$transaction(async (tx) => {
     const pedidoActualizado = await tx.pedido.update({
       where: { id },
-      data: { estado },
+      data: {
+        estado,
+        ...(estado === "EN_PRODUCCION" && fechaProduccion
+          ? { fechaProduccion: new Date(fechaProduccion + "T00:00:00") }
+          : {}),
+      },
     });
 
     // Generar factura automáticamente al marcar como ENTREGADO

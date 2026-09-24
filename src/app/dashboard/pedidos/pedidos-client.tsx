@@ -30,6 +30,19 @@ interface PedidoResumen {
   _count: { items: number };
 }
 
+interface ItemDetalle {
+  productoId: string;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+  producto: { nombre: string; categoria: { nombre: string } };
+}
+
+interface PedidoDetalle extends Omit<PedidoResumen, "_count"> {
+  items: ItemDetalle[];
+  notas: string | null;
+}
+
 interface PedidosClientProps {
   clientes: Cliente[];
   categorias: CategoriaConProductos[];
@@ -72,12 +85,17 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
   const [showForm, setShowForm] = useState(false);
   const [pedidoEditar, setPedidoEditar] = useState<string | null>(null);
-  const [pedidoVer, setPedidoVer] = useState<PedidoResumen | null>(null);
+  const [pedidoVer, setPedidoVer] = useState<PedidoDetalle | null>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   // IVA modal para cambio de estado a ENTREGADO
   const [ivaModal, setIvaModal] = useState<{ pedidoId: string; nuevoEstado: string } | null>(null);
   const [ivaSeleccionado, setIvaSeleccionado] = useState<0 | 0.21>(0);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+
+  // Modal fecha de producción para EN_PRODUCCION
+  const [prodModal, setProdModal] = useState<{ pedidoId: string } | null>(null);
+  const [fechaProdSeleccionada, setFechaProdSeleccionada] = useState(getHoy());
 
   const cargarPedidos = useCallback(async () => {
     setLoading(true);
@@ -123,18 +141,27 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
     if (nuevoEstado === "ENTREGADO") {
       setIvaSeleccionado(0);
       setIvaModal({ pedidoId, nuevoEstado });
+    } else if (nuevoEstado === "EN_PRODUCCION") {
+      setFechaProdSeleccionada(getHoy());
+      setProdModal({ pedidoId });
     } else {
       ejecutarCambioEstado(pedidoId, nuevoEstado, 0);
     }
   }
 
-  async function ejecutarCambioEstado(pedidoId: string, nuevoEstado: string, tasaIva: number) {
+  async function confirmarProduccion() {
+    if (!prodModal) return;
+    await ejecutarCambioEstado(prodModal.pedidoId, "EN_PRODUCCION", 0, fechaProdSeleccionada);
+    setProdModal(null);
+  }
+
+  async function ejecutarCambioEstado(pedidoId: string, nuevoEstado: string, tasaIva: number, fechaProduccion?: string) {
     setCambiandoEstado(true);
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}/estado`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: nuevoEstado, tasaIva }),
+        body: JSON.stringify({ estado: nuevoEstado, tasaIva, ...(fechaProduccion && { fechaProduccion }) }),
       });
       if (res.ok) {
         toast({ title: "Estado actualizado" });
@@ -152,6 +179,18 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
     if (!ivaModal) return;
     await ejecutarCambioEstado(ivaModal.pedidoId, "ENTREGADO", ivaSeleccionado);
     setIvaModal(null);
+  }
+
+  async function verDetallePedido(id: string) {
+    setLoadingDetalle(true);
+    try {
+      const res = await fetch(`/api/pedidos/${id}`);
+      const json = await res.json();
+      if (res.ok) setPedidoVer(json.data);
+      else toast({ title: "Error al cargar detalle", variant: "destructive" });
+    } finally {
+      setLoadingDetalle(false);
+    }
   }
 
   async function cancelarPedido(id: string) {
@@ -346,7 +385,8 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                               variant="ghost"
                               size="icon"
                               title="Ver detalle"
-                              onClick={() => setPedidoVer(pedido)}
+                              onClick={() => verDetallePedido(pedido.id)}
+                              disabled={loadingDetalle}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -402,24 +442,61 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
       {/* Modal detalle pedido */}
       <Dialog open={!!pedidoVer} onOpenChange={() => setPedidoVer(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Detalle del pedido</DialogTitle>
           </DialogHeader>
           {pedidoVer && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-4 text-sm">
+              {/* Info general */}
+              <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg p-3">
                 <div><span className="text-gray-500">Distribuidor:</span> <span className="font-medium">{pedidoVer.cliente.nombre}</span></div>
-                <div><span className="text-gray-500">Estado:</span> {estadoBadge[pedidoVer.estado]}</div>
+                <div className="flex items-center gap-1"><span className="text-gray-500">Estado:</span> {estadoBadge[pedidoVer.estado]}</div>
                 <div><span className="text-gray-500">Entrega:</span> <span className="font-medium">{formatDate(pedidoVer.fechaEntrega)}</span></div>
                 <div><span className="text-gray-500">Horario:</span> <span className="font-medium">{getRangoLabel(pedidoVer.rangoHorario)}</span></div>
-                <div><span className="text-gray-500">Items:</span> <span className="font-medium">{pedidoVer._count.items} productos</span></div>
-                <div><span className="text-gray-500">Total:</span> <span className="font-bold text-pink-600">{formatCurrency(Number(pedidoVer.montoTotal))}</span></div>
               </div>
+
+              {/* Lista de productos */}
+              <div>
+                <h4 className="font-medium text-gray-700 mb-2">Productos ({pedidoVer.items.length})</h4>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Producto</th>
+                        <th className="text-center px-3 py-2 font-medium text-gray-600">Cant.</th>
+                        <th className="text-right px-3 py-2 font-medium text-gray-600">Precio</th>
+                        <th className="text-right px-3 py-2 font-medium text-gray-600">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pedidoVer.items.map((item, i) => (
+                        <tr key={item.productoId} className={`border-b border-gray-50 ${i % 2 === 0 ? "" : "bg-gray-50/50"}`}>
+                          <td className="px-3 py-2">
+                            <span className="font-medium text-gray-900">{item.producto.nombre}</span>
+                            <span className="text-gray-400 ml-1">· {item.producto.categoria.nombre}</span>
+                          </td>
+                          <td className="px-3 py-2 text-center font-semibold">{item.cantidad}</td>
+                          <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(Number(item.precioUnitario))}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatCurrency(Number(item.subtotal))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 bg-pink-50">
+                        <td colSpan={3} className="px-3 py-2 font-bold text-gray-700">Total</td>
+                        <td className="px-3 py-2 text-right font-bold text-pink-600 text-sm">{formatCurrency(Number(pedidoVer.montoTotal))}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Notas */}
               {pedidoVer.notas && (
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <span className="text-gray-500 text-xs">Notas:</span>
-                  <p className="mt-1">{pedidoVer.notas}</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <span className="text-amber-700 text-xs font-medium">Notas:</span>
+                  <p className="mt-1 text-gray-700">{pedidoVer.notas}</p>
                 </div>
               )}
             </div>
@@ -447,6 +524,34 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
             onCancel={() => { setShowForm(false); setPedidoEditar(null); }}
             userRol={userRol}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal fecha de producción */}
+      <Dialog open={!!prodModal} onOpenChange={() => setProdModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Para qué día se produce?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600">
+              Elegí el día en que se va a fabricar este pedido.
+            </p>
+            <div className="space-y-2">
+              <Label>Fecha de producción</Label>
+              <Input
+                type="date"
+                value={fechaProdSeleccionada}
+                onChange={(e) => setFechaProdSeleccionada(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setProdModal(null)}>Cancelar</Button>
+              <Button onClick={confirmarProduccion} disabled={cambiandoEstado || !fechaProdSeleccionada}>
+                {cambiandoEstado ? "Guardando..." : "Confirmar"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

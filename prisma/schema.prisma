@@ -139,6 +139,7 @@ model Pedido {
   usuarioCreadorId String
   usuarioEditorId  String?
   fechaEntrega    DateTime
+  fechaProduccion DateTime?
   rangoHorario    RangoHorario @default(SIN_ESPECIFICAR)
   estado          EstadoPedido @default(PENDIENTE)
   montoTotal      Decimal      @db.Decimal(10, 2)

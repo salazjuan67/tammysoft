@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
   const estado = searchParams.get("estado") ?? "";
   const desde = searchParams.get("desde") ?? "";
   const hasta = searchParams.get("hasta") ?? "";
+  const desdeProduccion = searchParams.get("desdeProduccion") ?? "";
+  const hastaProduccion = searchParams.get("hastaProduccion") ?? "";
   const rangoHorario = searchParams.get("rangoHorario") ?? "";
   const page = parseInt(searchParams.get("page") ?? "1");
   const pageSize = parseInt(searchParams.get("pageSize") ?? "20");
@@ -36,6 +38,13 @@ export async function GET(req: NextRequest) {
     where.fechaEntrega = {
       ...(desde && { gte: new Date(desde) }),
       ...(hasta && { lte: new Date(hasta) }),
+    };
+  }
+
+  if (desdeProduccion || hastaProduccion) {
+    where.fechaProduccion = {
+      ...(desdeProduccion && { gte: new Date(desdeProduccion + "T00:00:00") }),
+      ...(hastaProduccion && { lte: new Date(hastaProduccion + "T23:59:59") }),
     };
   }
 
