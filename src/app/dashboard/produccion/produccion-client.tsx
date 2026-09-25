@@ -77,14 +77,32 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
       inicio.setHours(0, 0, 0, 0);
       const fin = new Date(fechaStr);
       fin.setHours(23, 59, 59, 999);
+      const desdeIso = inicio.toISOString();
+      const hastaIso = fin.toISOString();
 
-      const [resPend, resEnProd] = await Promise.all([
-        fetch(`/api/pedidos?desde=${inicio.toISOString()}&hasta=${fin.toISOString()}&estado=PENDIENTE&pageSize=100&includeItems=true`),
-        fetch(`/api/pedidos?desdeProduccion=${fechaStr}&hastaProduccion=${fechaStr}&estado=EN_PRODUCCION&pageSize=100&includeItems=true`),
+      // Buscamos en paralelo:
+      // 1. PENDIENTE por fecha de entrega
+      // 2. EN_PRODUCCION por fecha de ENTREGA (sin fechaProduccion asignada)
+      // 3. EN_PRODUCCION por fecha de PRODUCCION (con fechaProduccion asignada)
+      const [resPend, resEnProdEntrega, resEnProdProd] = await Promise.all([
+        fetch(`/api/pedidos?desde=${desdeIso}&hasta=${hastaIso}&estado=PENDIENTE&pageSize=200&includeItems=true`),
+        fetch(`/api/pedidos?desde=${desdeIso}&hasta=${hastaIso}&estado=EN_PRODUCCION&pageSize=200&includeItems=true`),
+        fetch(`/api/pedidos?desdeProduccion=${fechaStr}&hastaProduccion=${fechaStr}&estado=EN_PRODUCCION&pageSize=200&includeItems=true`),
       ]);
-      const [jsonPend, jsonEnProd] = await Promise.all([resPend.json(), resEnProd.json()]);
-      const combined = [...(jsonPend.data ?? []), ...(jsonEnProd.data ?? [])];
-      setPedidos(sortPedidos(combined));
+      const [jsonPend, jsonEnProdEntrega, jsonEnProdProd] = await Promise.all([
+        resPend.json(), resEnProdEntrega.json(), resEnProdProd.json(),
+      ]);
+
+      // Combinar y deduplicar por id
+      const mapa = new Map<string, PedidoProduccion>();
+      for (const p of [
+        ...(jsonPend.data ?? []),
+        ...(jsonEnProdEntrega.data ?? []),
+        ...(jsonEnProdProd.data ?? []),
+      ]) {
+        mapa.set(p.id, p);
+      }
+      setPedidos(sortPedidos(Array.from(mapa.values())));
     } finally {
       setLoading(false);
     }
