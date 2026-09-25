@@ -25,6 +25,7 @@ interface ClienteDeuda {
   nombre: string;
   deuda: number;
   cantidadFacturas: number;
+  fechaPrimerFactura: string | null;
 }
 
 interface FacturaSimple {
@@ -293,6 +294,7 @@ export default function CobranzaPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Desde</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Facturas</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Deuda</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Acción</th>
@@ -302,6 +304,9 @@ export default function CobranzaPage() {
                   {deudas.map((cliente) => (
                     <tr key={cliente.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{cliente.nombre}</td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">
+                        {cliente.fechaPrimerFactura ? formatDate(cliente.fechaPrimerFactura) : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant="secondary">{cliente.cantidadFacturas}</Badge>
                       </td>

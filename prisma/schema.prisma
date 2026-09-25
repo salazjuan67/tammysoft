@@ -84,15 +84,16 @@ model Usuario {
 }
 
 model Cliente {
-  id        String   @id @default(cuid())
-  nombre    String
-  email     String?  @unique
-  telefono  String?
-  direccion String?
-  estado    Boolean  @default(true)
-  notas     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  nombre          String
+  email           String?  @unique
+  telefono        String?
+  direccion       String?
+  estado          Boolean  @default(true)
+  notas           String?
+  horarioEntrega  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   usuario   Usuario?
   pedidos   Pedido[]
@@ -145,6 +146,8 @@ model Pedido {
   estado          EstadoPedido @default(PENDIENTE)
   montoTotal      Decimal      @db.Decimal(10, 2)
   notas           String?
+  numeroHeladera  String?
+  estante         String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

@@ -180,32 +180,18 @@ function NuevoPedidoInner() {
             <div className="bg-white rounded-2xl border border-pink-100 shadow-sm p-5 space-y-5">
               <h2 className="font-semibold text-gray-900">2. Fecha y horario de entrega</h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha de entrega * {repetirId && <span className="text-xs text-amber-600">(obligatorio elegir nueva fecha)</span>}
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaEntrega}
-                    min={getFechaMinimaString()}
-                    max={getFechaMaximaString()}
-                    onChange={(e) => setFechaEntrega(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rango horario</label>
-                  <select
-                    value={rangoHorario}
-                    onChange={(e) => setRangoHorario(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white"
-                  >
-                    {RANGOS.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de entrega * {repetirId && <span className="text-xs text-amber-600">(obligatorio elegir nueva fecha)</span>}
+                </label>
+                <input
+                  type="date"
+                  value={fechaEntrega}
+                  min={getFechaMinimaString()}
+                  max={getFechaMaximaString()}
+                  onChange={(e) => setFechaEntrega(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                />
               </div>
 
               <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { formatCurrency, formatDate, getRangoLabel, RANGOS_HORARIO, puedeEditarPedido } from "@/lib/utils";
+import { formatCurrency, formatDate, getRangoLabel, puedeEditarPedido } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Search, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, X, Printer } from "lucide-react";
 import { FormularioPedido } from "@/components/forms/formulario-pedido";
+import { useReactToPrint } from "react-to-print";
 import type { Cliente, Categoria, Producto } from "@/types";
 
 interface CategoriaConProductos extends Categoria {
@@ -72,6 +73,10 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
   const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const listaPrintRef = useRef<HTMLDivElement>(null);
+  const detallePrintRef = useRef<HTMLDivElement>(null);
+  const handlePrintLista = useReactToPrint({ contentRef: listaPrintRef });
+  const handlePrintDetalle = useReactToPrint({ contentRef: detallePrintRef });
   const pageSize = 20;
   const [loading, setLoading] = useState(true);
 
@@ -221,10 +226,16 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
               : `${total} pedidos en total`}
           </p>
         </div>
-        <Button onClick={() => { setPedidoEditar(null); setShowForm(true); }}>
-          <Plus className="h-4 w-4" />
-          Nuevo pedido
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => handlePrintLista()}>
+            <Printer className="h-4 w-4" />
+            Imprimir lista
+          </Button>
+          <Button onClick={() => { setPedidoEditar(null); setShowForm(true); }}>
+            <Plus className="h-4 w-4" />
+            Nuevo pedido
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -311,6 +322,14 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       </Card>
 
       {/* Tabla */}
+      <div ref={listaPrintRef}>
+        {/* Encabezado solo visible en impresión */}
+        <div className="hidden print:block mb-3 px-1">
+          <h1 className="text-xl font-bold">Lista de pedidos — Postres Tammy Light</h1>
+          {(fechaDesde || fechaHasta) && (
+            <p className="text-gray-500 text-sm">{fechaDesde && formatDate(fechaDesde)}{fechaDesde !== fechaHasta && fechaHasta ? ` — ${formatDate(fechaHasta)}` : ""}</p>
+          )}
+        </div>
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -336,7 +355,8 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Acciones</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notas</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 print:hidden">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -378,8 +398,19 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                           )}
                         </td>
 
+                        {/* Notas */}
+                        <td className="px-4 py-3 max-w-[160px]">
+                          {pedido.notas ? (
+                            <span className="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 line-clamp-2" title={pedido.notas}>
+                              {pedido.notas}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
+                        </td>
+
                         {/* Acciones simplificadas */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 print:hidden">
                           <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -423,7 +454,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
           {/* Paginación */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 print:hidden">
               <p className="text-sm text-gray-500">
                 Página {page} de {totalPages} ({total} pedidos)
               </p>
@@ -439,15 +470,24 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Modal detalle pedido */}
       <Dialog open={!!pedidoVer} onOpenChange={() => setPedidoVer(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Detalle del pedido</DialogTitle>
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle>Detalle del pedido</DialogTitle>
+              {pedidoVer && (
+                <Button variant="outline" size="sm" onClick={() => handlePrintDetalle()}>
+                  <Printer className="h-4 w-4" />
+                  Imprimir
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {pedidoVer && (
-            <div className="space-y-4 text-sm">
+            <div ref={detallePrintRef} className="space-y-4 text-sm">
               {/* Info general */}
               <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg p-3">
                 <div><span className="text-gray-500">Distribuidor:</span> <span className="font-medium">{pedidoVer.cliente.nombre}</span></div>
@@ -554,6 +594,16 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Estilos de impresión */}
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 10mm; }
+          body { font-size: 10px !important; }
+          .print\\:hidden { display: none !important; }
+          nav, header, aside { display: none !important; }
+        }
+      `}</style>
 
       {/* Modal IVA para ENTREGADO */}
       <Dialog open={!!ivaModal} onOpenChange={() => setIvaModal(null)}>

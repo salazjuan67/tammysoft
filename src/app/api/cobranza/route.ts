@@ -76,7 +76,14 @@ export async function GET(req: NextRequest) {
           const pagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
           return acc + Number(f.montoTotal) - pagado;
         }, 0);
-        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: c.facturas.length };
+        // Fecha de la factura más antigua pendiente
+        const fechaPrimerFactura = c.facturas.length > 0
+          ? c.facturas.reduce((oldest, f) =>
+              new Date(f.fecha) < new Date(oldest) ? f.fecha.toISOString() : oldest,
+              c.facturas[0].fecha.toISOString()
+            )
+          : null;
+        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: c.facturas.length, fechaPrimerFactura };
       })
       .filter((c) => c.deuda > 0)
       .sort((a, b) => b.deuda - a.deuda);

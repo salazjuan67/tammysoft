@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+
 const estadoSchema = z.object({
   estado: z.enum(["PENDIENTE", "EN_PRODUCCION", "ENTREGADO", "CANCELADO"]),
-  // IVA rate for invoice generation (only used when estado = ENTREGADO)
+  // IVA rate for invoice generation (only used when estado = ENTREGADO, defaults to 0)
   tasaIva: z.number().min(0).max(1).optional().default(0),
   // Production date (only used when estado = EN_PRODUCCION)
   fechaProduccion: z.string().optional(),
+  // Heladera fields (only used when estado = ENTREGADO)
+  numeroHeladera: z.string().optional(),
+  estante: z.string().optional(),
+  // Horario de entrega del cliente (saved to Cliente record)
+  horarioEntrega: z.string().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = estadoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { estado, tasaIva, fechaProduccion } = parsed.data;
+  const { estado, tasaIva, fechaProduccion, numeroHeladera, estante, horarioEntrega } = parsed.data;
 
   const pedido = await db.pedido.findUnique({
     where: { id },
@@ -41,8 +47,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(estado === "EN_PRODUCCION" && fechaProduccion
           ? { fechaProduccion: new Date(fechaProduccion + "T00:00:00") }
           : {}),
+        ...(estado === "ENTREGADO"
+          ? {
+              ...(numeroHeladera !== undefined && { numeroHeladera }),
+              ...(estante !== undefined && { estante }),
+            }
+          : {}),
       },
     });
+
+    // Update client horarioEntrega if provided
+    if (horarioEntrega !== undefined && pedido.clienteId) {
+      await tx.cliente.update({
+        where: { id: pedido.clienteId },
+        data: { horarioEntrega },
+      });
+    }
 
     // Generar factura automáticamente al marcar como ENTREGADO
     if (estado === "ENTREGADO" && !pedido.factura) {
