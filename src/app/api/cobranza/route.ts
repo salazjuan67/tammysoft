@@ -42,6 +42,48 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Detalle completo de un cliente: facturas + pagos parciales
+  if (tipo === "detalle-cliente") {
+    const clienteId = searchParams.get("clienteId") ?? "";
+    if (!clienteId) return NextResponse.json({ error: "clienteId requerido" }, { status: 400 });
+
+    const facturas = await db.factura.findMany({
+      where: {
+        clienteId,
+        estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
+      },
+      include: {
+        pagos: {
+          select: { id: true, monto: true, tipoPago: true, fechaPago: true, observaciones: true },
+          orderBy: { fechaPago: "asc" },
+        },
+        pedido: { select: { id: true, fechaEntrega: true } },
+      },
+      orderBy: { fecha: "asc" },
+    });
+
+    const data = facturas.map((f) => {
+      const totalPagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
+      const saldoPendiente = Math.max(0, Number(f.montoTotal) - totalPagado);
+      return {
+        id: f.id,
+        numero: f.numero,
+        fecha: f.fecha,
+        montoTotal: Number(f.montoTotal),
+        totalPagado,
+        saldoPendiente,
+        estado: f.estado,
+        pedido: f.pedido,
+        pagos: f.pagos.map((p) => ({
+          ...p,
+          monto: Number(p.monto),
+        })),
+      };
+    });
+
+    return NextResponse.json({ data });
+  }
+
   if (tipo === "deudas") {
     const clienteId = searchParams.get("clienteId") ?? "";
     const desde = searchParams.get("desde") ?? "";

@@ -38,24 +38,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
-  const { estado } = body;
+  const { estado, tasaIva } = body;
 
-  // Map simple "cobrada"/"sin-cobrar" to enum
-  const estadoEnum =
-    estado === "cobrada" ? "COBRADA"
-    : estado === "sin-cobrar" ? "PENDIENTE"
-    : estado; // allow direct enum values too
+  const facturaActual = await db.factura.findUnique({ where: { id } });
+  if (!facturaActual) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
 
-  const validEstados = ["PENDIENTE", "PARCIALMENTE_COBRADA", "COBRADA", "ANULADA"];
-  if (!validEstados.includes(estadoEnum)) {
-    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: Record<string, any> = {};
+
+  // Actualizar IVA sobre el monto neto original
+  if (tasaIva !== undefined) {
+    const montoNeto = Number(facturaActual.montoNeto);
+    const montoIva = montoNeto * tasaIva;
+    const montoTotal = montoNeto + montoIva;
+    data.tasaIva = tasaIva;
+    data.montoIva = montoIva;
+    data.montoTotal = montoTotal;
   }
 
-  const factura = await db.factura.update({
-    where: { id },
-    data: { estado: estadoEnum as "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA" },
-  });
+  if (estado) {
+    const estadoEnum = estado === "cobrada" ? "COBRADA"
+      : estado === "sin-cobrar" ? "PENDIENTE"
+      : estado;
+    const validEstados = ["PENDIENTE", "PARCIALMENTE_COBRADA", "COBRADA", "ANULADA"];
+    if (!validEstados.includes(estadoEnum)) {
+      return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+    }
+    data.estado = estadoEnum;
+  }
 
+  const factura = await db.factura.update({ where: { id }, data });
   return NextResponse.json({ data: factura });
 }
 
