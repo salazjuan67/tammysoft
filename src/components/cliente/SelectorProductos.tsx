@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import type { ItemCarrito } from "./ResumenPedido";
 
 interface Categoria { id: string; nombre: string; orden: number }
-interface Producto { id: string; nombre: string; descripcion: string | null; precio: number; categoria: Categoria }
+interface Producto { id: string; nombre: string; descripcion: string | null; precio: number; precioOriginal?: number; descuento?: number; categoria: Categoria }
 
 interface SelectorProductosProps {
   carrito: ItemCarrito[];
@@ -24,8 +24,13 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
     async function cargar() {
       const res = await fetch("/api/productos?activos=true&limit=200");
       const json = await res.json();
-      const rawProds: Array<{ id: string; nombre: string; descripcion: string | null; precio: unknown; categoria: Categoria }> = json.data ?? [];
-      setProductos(rawProds.map((p) => ({ ...p, precio: Number(p.precio) })));
+      const rawProds: Array<{ id: string; nombre: string; descripcion: string | null; precio: unknown; precioOriginal?: unknown; descuento?: unknown; categoria: Categoria }> = json.data ?? [];
+      setProductos(rawProds.map((p) => ({
+        ...p,
+        precio: Number(p.precio),
+        precioOriginal: p.precioOriginal !== undefined ? Number(p.precioOriginal) : undefined,
+        descuento: p.descuento !== undefined ? Number(p.descuento) : undefined,
+      })));
       setCargando(false);
     }
     cargar();
@@ -149,9 +154,12 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                               <p className="text-xs text-gray-400 truncate">{prod.descripcion}</p>
                             )}
                           </div>
-                          <span className="text-sm font-semibold text-pink-600 flex-shrink-0">
-                            {formatCurrency(prod.precio)}
-                          </span>
+                          <div className="flex flex-col items-end flex-shrink-0">
+                            <span className="text-sm font-semibold text-pink-600">{formatCurrency(prod.precio)}</span>
+                            {prod.descuento && prod.descuento > 0 && prod.precioOriginal && (
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(prod.precioOriginal)}</span>
+                            )}
+                          </div>
                           {/* Cantidad */}
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button

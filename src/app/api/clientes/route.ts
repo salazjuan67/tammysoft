@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
       take: pageSize,
       include: {
         _count: { select: { pedidos: true } },
+        tipoCliente: { select: { id: true, nombre: true } },
       },
     }),
     db.cliente.count({ where }),
@@ -71,6 +72,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const tipoClienteId = (body as Record<string, unknown>).tipoClienteId as string | undefined;
+
   const cliente = await db.cliente.create({
     data: {
       nombre: data.nombre,
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
       direccion: data.direccion || null,
       notas: data.notas || null,
       estado: data.estado,
+      tipoClienteId: tipoClienteId || null,
     },
   });
 

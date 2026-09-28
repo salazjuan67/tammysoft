@@ -26,7 +26,9 @@ export default function ClientesAdminPage() {
   const [telefono, setTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
   const [notas, setNotas] = useState("");
+  const [tipoClienteId, setTipoClienteId] = useState("");
   const [savingForm, setSavingForm] = useState(false);
+  const [tiposCliente, setTiposCliente] = useState<Array<{ id: string; nombre: string }>>([]);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -36,10 +38,15 @@ export default function ClientesAdminPage() {
         ...(search && { search }),
         pageSize: "100",
       });
-      const res = await fetch(`/api/clientes?${params}`);
-      const json = await res.json();
+      const [resClientes, resTipos] = await Promise.all([
+        fetch(`/api/clientes?${params}`),
+        fetch("/api/tipos-cliente"),
+      ]);
+      const json = await resClientes.json();
+      const jsonTipos = await resTipos.json();
       setClientes(json.data ?? []);
       setTotal(json.total ?? 0);
+      setTiposCliente(jsonTipos.data ?? []);
     } finally {
       setLoading(false);
     }
@@ -49,7 +56,7 @@ export default function ClientesAdminPage() {
 
   function abrirNuevo() {
     setEditando(null);
-    setNombre(""); setEmail(""); setTelefono(""); setDireccion(""); setNotas("");
+    setNombre(""); setEmail(""); setTelefono(""); setDireccion(""); setNotas(""); setTipoClienteId("");
     setShowForm(true);
   }
 
@@ -57,6 +64,7 @@ export default function ClientesAdminPage() {
     setEditando(c);
     setNombre(c.nombre); setEmail(c.email ?? ""); setTelefono(c.telefono ?? "");
     setDireccion(c.direccion ?? ""); setNotas(c.notas ?? "");
+    setTipoClienteId((c as unknown as { tipoClienteId?: string }).tipoClienteId ?? "");
     setShowForm(true);
   }
 
@@ -64,7 +72,7 @@ export default function ClientesAdminPage() {
     if (!nombre.trim()) { toast({ title: "El nombre es requerido", variant: "destructive" }); return; }
     setSavingForm(true);
     try {
-      const body = { nombre: nombre.trim(), email: email || undefined, telefono, direccion, notas, estado: true };
+      const body = { nombre: nombre.trim(), email: email || undefined, telefono, direccion, notas, estado: true, tipoClienteId: tipoClienteId || null };
       const url = editando ? `/api/clientes/${editando.id}` : "/api/clientes";
       const method = editando ? "PUT" : "POST";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -132,6 +140,7 @@ export default function ClientesAdminPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Nombre</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Contacto</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Dirección</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Tipo</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Acciones</th>
                   </tr>
@@ -147,6 +156,11 @@ export default function ClientesAdminPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{c.direccion ?? "-"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {(c as unknown as { tipoCliente?: { nombre: string } }).tipoCliente
+                          ? <span className="bg-pink-50 text-pink-700 rounded-full px-2 py-0.5 font-medium">{(c as unknown as { tipoCliente: { nombre: string } }).tipoCliente.nombre}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <Badge variant={c.estado ? "success" : "secondary"}>{c.estado ? "Activo" : "Inactivo"}</Badge>
                       </td>
@@ -194,6 +208,19 @@ export default function ClientesAdminPage() {
             <div className="space-y-2">
               <Label>Notas internas</Label>
               <Input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo de cliente</Label>
+              <select
+                value={tipoClienteId}
+                onChange={(e) => setTipoClienteId(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+              >
+                <option value="">— Sin tipo (precio de lista) —</option>
+                {tiposCliente.map((t) => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
             </div>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>

@@ -89,6 +89,37 @@ model Usuario {
   @@map("usuarios")
 }
 
+model TipoCliente {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clientes   Cliente[]
+  descuentos DescuentoProducto[]
+
+  @@map("tipos_cliente")
+}
+
+model DescuentoProducto {
+  id            String      @id @default(cuid())
+  tipoClienteId String
+  productoId    String
+  descuento     Decimal     @db.Decimal(5, 4) // 0.0000 – 1.0000 (ej: 0.10 = 10%)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tipoCliente TipoCliente @relation(fields: [tipoClienteId], references: [id], onDelete: Cascade)
+  producto    Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@unique([tipoClienteId, productoId])
+  @@index([tipoClienteId])
+  @@index([productoId])
+  @@map("descuentos_producto")
+}
+
 model Cliente {
   id              String   @id @default(cuid())
   nombre          String
@@ -98,6 +129,7 @@ model Cliente {
   estado          Boolean  @default(true)
   notas           String?
   horarioEntrega  String?
+  tipoClienteId   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -106,7 +138,9 @@ model Cliente {
   facturas     Factura[]
   pagos        Pago[]
   solicitudes  SolicitudFacturacion[]
+  tipoCliente  TipoCliente? @relation(fields: [tipoClienteId], references: [id])
 
+  @@index([tipoClienteId])
   @@map("clientes")
 }
 
@@ -136,6 +170,7 @@ model Producto {
 
   categoria   Categoria   @relation(fields: [categoriaId], references: [id])
   pedidoItems PedidoItem[]
+  descuentos  DescuentoProducto[]
 
   @@index([categoriaId])
   @@index([activo, nombre])

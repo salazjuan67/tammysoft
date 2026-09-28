@@ -15,6 +15,7 @@ import {
   Menu,
   FileText,
   Truck,
+  BadgePercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,12 @@ const navItems: NavItem[] = [
     label: "Reportes",
     icon: <BarChart3 className="h-5 w-5" />,
     roles: ["ADMIN", "OPERARIO"],
+  },
+  {
+    href: "/dashboard/admin/tipos-cliente",
+    label: "Tipos de cliente",
+    icon: <BadgePercent className="h-5 w-5" />,
+    roles: ["ADMIN"],
   },
   {
     href: "/dashboard/admin",

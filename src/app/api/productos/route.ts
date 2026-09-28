@@ -11,18 +11,53 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") ?? "";
   const categoriaId = searchParams.get("categoriaId") ?? "";
   const soloActivos = searchParams.get("activos") !== "false";
+  // Permitir pasar clienteId explícito (desde admin al crear pedido para un cliente)
+  const clienteIdParam = searchParams.get("clienteId") ?? "";
 
   const productos = await db.producto.findMany({
     where: {
       ...(soloActivos && { activo: true }),
       ...(categoriaId && { categoriaId }),
-      ...(search && {
-        nombre: { contains: search, mode: "insensitive" },
-      }),
+      ...(search && { nombre: { contains: search, mode: "insensitive" } }),
     },
     include: { categoria: true },
     orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],
   });
+
+  // Resolver el clienteId para buscar descuentos:
+  // Si el usuario es CLIENTE, usar su clienteId asociado; si se pasa clienteId explícito, usarlo.
+  const rol = (session.user as { rol: string }).rol;
+  const sessionClienteId = (session.user as { clienteId?: string }).clienteId ?? "";
+  const clienteIdFinal = clienteIdParam || (rol === "CLIENTE" ? sessionClienteId : "");
+
+  if (clienteIdFinal) {
+    // Buscar tipo del cliente y sus descuentos
+    const cliente = await db.cliente.findUnique({
+      where: { id: clienteIdFinal },
+      select: {
+        tipoClienteId: true,
+        tipoCliente: {
+          select: {
+            descuentos: { select: { productoId: true, descuento: true } },
+          },
+        },
+      },
+    });
+
+    if (cliente?.tipoCliente?.descuentos?.length) {
+      const mapaDescuentos = new Map(
+        cliente.tipoCliente.descuentos.map((d) => [d.productoId, Number(d.descuento)])
+      );
+      const productosConDescuento = productos.map((p) => {
+        const desc = mapaDescuentos.get(p.id) ?? 0;
+        if (desc <= 0) return p;
+        const precioOriginal = Number(p.precio);
+        const precioConDescuento = precioOriginal * (1 - desc);
+        return { ...p, precio: precioConDescuento, descuento: desc, precioOriginal };
+      });
+      return NextResponse.json({ data: productosConDescuento });
+    }
+  }
 
   return NextResponse.json({ data: productos });
 }

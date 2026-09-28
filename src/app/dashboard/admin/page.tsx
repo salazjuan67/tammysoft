@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Package, Tag, UserCog, Truck, Settings, FileText } from "lucide-react";
+import { Users, Package, Tag, UserCog, Truck, Settings, FileText, BadgePercent } from "lucide-react";
 
 const adminLinks = [
   {
@@ -8,6 +8,12 @@ const adminLinks = [
     icon: <Users className="h-6 w-6 text-pink-600" />,
     title: "Clientes",
     description: "Gestionar clientes: agregar, editar y desactivar",
+  },
+  {
+    href: "/dashboard/admin/tipos-cliente",
+    icon: <BadgePercent className="h-6 w-6 text-pink-500" />,
+    title: "Tipos de cliente",
+    description: "Definir categorías con descuentos por producto",
   },
   {
     href: "/dashboard/admin/productos",

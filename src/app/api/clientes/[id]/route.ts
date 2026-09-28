@@ -12,6 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const cliente = await db.cliente.findUnique({
     where: { id },
     include: {
+      tipoCliente: { select: { id: true, nombre: true } },
       pedidos: {
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -50,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const data = parsed.data;
+  const tipoClienteId = (body as Record<string, unknown>).tipoClienteId as string | undefined;
 
   if (data.email) {
     const existing = await db.cliente.findFirst({
@@ -69,6 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       direccion: data.direccion || null,
       notas: data.notas || null,
       estado: data.estado,
+      tipoClienteId: tipoClienteId !== undefined ? (tipoClienteId || null) : undefined,
     },
   });
 
