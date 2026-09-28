@@ -149,7 +149,8 @@ export default function ProductosAdminPage() {
     productosFiltradosCalc.forEach((p) => {
       const base = parseFloat(preciosEditados[p.id] ?? String(p.precio));
       const nuevo = base * (1 + signo * pct);
-      nuevos[p.id] = nuevo.toFixed(2);
+      // Siempre redondear hacia arriba al múltiplo de 100 más cercano
+      nuevos[p.id] = String(Math.ceil(nuevo / 100) * 100);
     });
     setPreciosEditados((prev) => ({ ...prev, ...nuevos }));
   }
