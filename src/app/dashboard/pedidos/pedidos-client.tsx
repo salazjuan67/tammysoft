@@ -350,12 +350,12 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Distribuidor</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notas</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha entrega</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Horario</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notas</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600 print:hidden">Acciones</th>
                   </tr>
                 </thead>
@@ -370,6 +370,21 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                     return (
                       <tr key={pedido.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900">{pedido.cliente.nombre}</td>
+
+                        {/* Notas — al lado del distribuidor */}
+                        <td className="px-4 py-3 max-w-[200px]">
+                          {pedido.notas ? (
+                            <span
+                              className="text-xs text-amber-700 bg-amber-50 print:bg-transparent print:text-gray-800 rounded px-1.5 py-0.5 line-clamp-2 print:line-clamp-none print:whitespace-normal"
+                              title={pedido.notas}
+                            >
+                              {pedido.notas}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs print:hidden">—</span>
+                          )}
+                        </td>
+
                         <td className="px-4 py-3 text-gray-600">{formatDate(pedido.fechaEntrega)}</td>
                         <td className="px-4 py-3 text-gray-600">{getRangoLabel(pedido.rangoHorario)}</td>
                         <td className="px-4 py-3 text-gray-600">{pedido._count.items} productos</td>
@@ -395,17 +410,6 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                             </Select>
                           ) : (
                             estadoBadge[pedido.estado]
-                          )}
-                        </td>
-
-                        {/* Notas */}
-                        <td className="px-4 py-3 max-w-[160px]">
-                          {pedido.notas ? (
-                            <span className="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 line-clamp-2" title={pedido.notas}>
-                              {pedido.notas}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
 

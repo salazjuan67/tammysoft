@@ -25,9 +25,25 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   }).format(num);
 }
 
+/** Parsea una fecha evitando el desfase UTC→local.
+ *  Si llega como "YYYY-MM-DD" la trata en hora local (no UTC).
+ */
+function parseDate(date: Date | string): Date {
+  if (typeof date === "string") {
+    // Solo fecha sin hora: parsear como local para evitar desfase UTC-3
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [y, m, d] = date.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+    // Timestamp ISO completo: usar directamente
+    return new Date(date);
+  }
+  return date;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "-";
-  return format(new Date(date), "dd/MM/yyyy", { locale: es });
+  return format(parseDate(date), "dd/MM/yyyy", { locale: es });
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
