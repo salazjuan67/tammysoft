@@ -29,6 +29,7 @@ interface PedidoProduccion {
   id: string;
   estado: string;
   rangoHorario: string;
+  notas: string | null;
   cliente: { id: string; nombre: string };
   items: ProductoItem[];
 }
@@ -264,7 +265,12 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="font-semibold text-gray-900">{pedido.cliente.nombre}</p>
-            <p className="text-xs text-gray-400">{getRangoLabel(pedido.rangoHorario)}</p>
+            {pedido.notas && (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mt-0.5 inline-block">
+                📝 {pedido.notas}
+              </p>
+            )}
+            <p className="text-xs text-gray-400 mt-0.5">{getRangoLabel(pedido.rangoHorario)}</p>
           </div>
           <div className="flex items-center gap-2 no-print">
             <Badge variant={pedido.estado === "EN_PRODUCCION" ? "info" : "warning"} className="text-xs">
