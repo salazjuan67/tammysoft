@@ -170,6 +170,41 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
     setHeladeraModal(null);
   }
 
+  // Imprimir pedidos de un cliente (o un pedido individual) en ventana emergente
+  function imprimirPedidosCliente(pedidosImprimir: PedidoProduccion[], clienteNombre: string) {
+    const rows = pedidosImprimir.map(p => `
+      <div style="margin-bottom:12px; border:1px solid #eee; border-radius:6px; padding:10px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <strong>${p.cliente.nombre}</strong>
+          <span style="color:#888; font-size:12px;">${getRangoLabel(p.rangoHorario)}</span>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:4px;">
+          ${p.items.sort((a,b) => a.producto.nombre.localeCompare(b.producto.nombre)).map(item =>
+            `<div><strong style="color:#db2777">${item.cantidad}</strong> ${item.producto.nombre}</div>`
+          ).join("")}
+        </div>
+      </div>`).join("");
+
+    const html = `<!DOCTYPE html><html><head>
+      <meta charset="utf-8"/>
+      <title>Comanda — ${clienteNombre}</title>
+      <style>
+        body { font-family: sans-serif; font-size: 12px; margin: 10mm; }
+        @media print { @page { size: A4; margin: 10mm; } }
+      </style>
+    </head><body>
+      <h2 style="color:#db2777; margin-bottom:4px;">Postres Tammy Light</h2>
+      <p style="color:#666; margin-bottom:12px; font-size:12px;">
+        ${clienteNombre} — ${formatDate(fecha)}
+      </p>
+      ${rows}
+      <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
+    </body></html>`;
+
+    const win = window.open("", "_blank", "width=800,height=600");
+    if (win) { win.document.write(html); win.document.close(); }
+  }
+
   async function marcarAlertasLeidas() {
     await fetch("/api/alertas", {
       method: "PATCH",
@@ -235,6 +270,15 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
             <Badge variant={pedido.estado === "EN_PRODUCCION" ? "info" : "warning"} className="text-xs">
               {pedido.estado === "EN_PRODUCCION" ? "En producción" : "Pendiente"}
             </Badge>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-gray-400 hover:text-gray-700"
+              title="Imprimir este pedido"
+              onClick={() => imprimirPedidosCliente([pedido], pedido.cliente.nombre)}
+            >
+              <Printer className="h-3.5 w-3.5" />
+            </Button>
             {pedido.estado === "PENDIENTE" && (
               <Button size="sm" variant="outline" onClick={() => cambiarEstadoPedido(pedido.id, "EN_PRODUCCION")}>
                 Iniciar
@@ -343,7 +387,18 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
                   <CardHeader className="pb-3 bg-pink-50 rounded-t-xl print:py-2 print:bg-white print:border-b print:border-gray-300">
                     <CardTitle className="text-base flex items-center justify-between">
                       <span>{getRangoLabel(rango)}</span>
-                      <Badge>{pedidosRango.length} pedidos</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge>{pedidosRango.length} pedidos</Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-gray-500 hover:text-gray-900 no-print"
+                          title={`Imprimir horario ${getRangoLabel(rango)}`}
+                          onClick={() => imprimirPedidosCliente(pedidosRango, getRangoLabel(rango))}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 print:pt-2">
@@ -363,7 +418,18 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
                   <CardHeader className="pb-3 bg-blue-50 rounded-t-xl print:py-2 print:bg-white print:border-b print:border-gray-300">
                     <CardTitle className="text-base flex items-center justify-between">
                       <span>{grupo.nombre}</span>
-                      <Badge>{grupo.pedidos.length} pedido{grupo.pedidos.length !== 1 ? "s" : ""}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge>{grupo.pedidos.length} pedido{grupo.pedidos.length !== 1 ? "s" : ""}</Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-gray-500 hover:text-gray-900 no-print"
+                          title={`Imprimir pedidos de ${grupo.nombre}`}
+                          onClick={() => imprimirPedidosCliente(grupo.pedidos, grupo.nombre)}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 print:pt-2">
