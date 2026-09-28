@@ -26,16 +26,16 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 }
 
 /** Parsea una fecha evitando el desfase UTC→local.
- *  Si llega como "YYYY-MM-DD" la trata en hora local (no UTC).
+ *  Extrae siempre la parte YYYY-MM-DD y la trata como hora local.
+ *  Así "2026-09-28T00:00:00.000Z" no retrocede a "27/09" en UTC-3.
  */
 function parseDate(date: Date | string): Date {
   if (typeof date === "string") {
-    // Solo fecha sin hora: parsear como local para evitar desfase UTC-3
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      const [y, m, d] = date.split("-").map(Number);
-      return new Date(y, m - 1, d);
+    // Extraer YYYY-MM-DD del inicio del string (cubre "2026-09-28" y "2026-09-28T00:00:00.000Z")
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     }
-    // Timestamp ISO completo: usar directamente
     return new Date(date);
   }
   return date;
