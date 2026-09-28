@@ -175,10 +175,11 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
   function imprimirPedidosCliente(pedidosImprimir: PedidoProduccion[], clienteNombre: string) {
     const rows = pedidosImprimir.map(p => `
       <div style="margin-bottom:12px; border:1px solid #eee; border-radius:6px; padding:10px;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
           <strong>${p.cliente.nombre}</strong>
           <span style="color:#888; font-size:12px;">${getRangoLabel(p.rangoHorario)}</span>
         </div>
+        ${p.notas ? `<div style="background:#fef3c7; color:#92400e; font-size:11px; border-radius:4px; padding:3px 6px; margin-bottom:6px;">📝 ${p.notas}</div>` : ""}
         <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:4px;">
           ${p.items.sort((a,b) => a.producto.nombre.localeCompare(b.producto.nombre)).map(item =>
             `<div><strong style="color:#db2777">${item.cantidad}</strong> ${item.producto.nombre}</div>`

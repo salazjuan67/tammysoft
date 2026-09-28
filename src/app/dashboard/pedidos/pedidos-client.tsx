@@ -350,7 +350,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Distribuidor</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notas</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente final / Notas</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha entrega</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Horario</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
@@ -492,6 +492,14 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           </DialogHeader>
           {pedidoVer && (
             <div ref={detallePrintRef} className="space-y-4 text-sm">
+              {/* Notas / cliente final — primero y destacado */}
+              {pedidoVer.notas && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 -mt-2">
+                  <span className="text-amber-700 text-xs font-semibold">📝 Cliente final / Notas:</span>
+                  <p className="mt-1 text-gray-800 font-medium">{pedidoVer.notas}</p>
+                </div>
+              )}
+
               {/* Info general */}
               <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg p-3">
                 <div><span className="text-gray-500">Distribuidor:</span> <span className="font-medium">{pedidoVer.cliente.nombre}</span></div>
@@ -536,13 +544,6 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                 </div>
               </div>
 
-              {/* Notas */}
-              {pedidoVer.notas && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <span className="text-amber-700 text-xs font-medium">Notas:</span>
-                  <p className="mt-1 text-gray-700">{pedidoVer.notas}</p>
-                </div>
-              )}
             </div>
           )}
         </DialogContent>
