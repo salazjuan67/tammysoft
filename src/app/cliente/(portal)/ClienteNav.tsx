@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { ShoppingCart, FileText, DollarSign, Home, LogOut } from "lucide-react";
+import { ShoppingCart, FileText, DollarSign, Home, LogOut, BookOpen } from "lucide-react";
 import type { Session } from "next-auth";
 
 const NAV_LINKS = [
@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/cliente/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/cliente/facturas", label: "Facturas", icon: FileText },
   { href: "/cliente/deuda", label: "Mi deuda", icon: DollarSign },
+  { href: "/cliente/cuenta", label: "Mi cuenta", icon: BookOpen },
 ];
 
 export default function ClienteNav({ session }: { session: Session | null }) {

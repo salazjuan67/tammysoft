@@ -46,6 +46,12 @@ enum TipoPago {
   CHEQUE
 }
 
+enum EstadoSolicitud {
+  PENDIENTE
+  PROCESADA
+  RECHAZADA
+}
+
 enum EstadoFacturaProveedor {
   PENDIENTE
   PARCIALMENTE_PAGADA
@@ -95,10 +101,11 @@ model Cliente {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  usuario   Usuario?
-  pedidos   Pedido[]
-  facturas  Factura[]
-  pagos     Pago[]
+  usuario      Usuario?
+  pedidos      Pedido[]
+  facturas     Factura[]
+  pagos        Pago[]
+  solicitudes  SolicitudFacturacion[]
 
   @@map("clientes")
 }
@@ -154,9 +161,10 @@ model Pedido {
   cliente         Cliente      @relation(fields: [clienteId], references: [id])
   usuarioCreador  Usuario      @relation("pedidoCreador", fields: [usuarioCreadorId], references: [id])
   usuarioEditor   Usuario?     @relation("pedidoEditor", fields: [usuarioEditorId], references: [id])
-  items           PedidoItem[]
-  factura         Factura?
-  alertas         Alerta[]
+  items             PedidoItem[]
+  factura           Factura?
+  alertas           Alerta[]
+  solicitudItems    SolicitudItem[]
 
   @@index([clienteId, estado, fechaEntrega])
   @@index([fechaEntrega, estado])
@@ -324,4 +332,49 @@ model ConfiguracionSistema {
   updatedAt DateTime @updatedAt
 
   @@map("configuracion_sistema")
+}
+
+// ─── Solicitudes de Facturación (Cuenta Corriente) ────────────────────────────
+
+model SolicitudFacturacion {
+  id            String          @id @default(cuid())
+  numero        Int             @unique @default(autoincrement())
+  clienteId     String
+  estado        EstadoSolicitud @default(PENDIENTE)
+  montoEfectivo Decimal         @db.Decimal(10, 2) @default(0)
+  montoBase     Decimal         @db.Decimal(10, 2) @default(0)
+  montoIva      Decimal         @db.Decimal(10, 2) @default(0)
+  montoTransfer Decimal         @db.Decimal(10, 2) @default(0)
+  montoTotal    Decimal         @db.Decimal(10, 2) @default(0)
+  tasaIva       Decimal         @db.Decimal(5, 4)  @default(0.21)
+  notas         String?
+  procesadoEn   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  cliente       Cliente         @relation(fields: [clienteId], references: [id])
+  items         SolicitudItem[]
+
+  @@index([clienteId])
+  @@map("solicitudes_facturacion")
+}
+
+model SolicitudItem {
+  id                  String               @id @default(cuid())
+  solicitudId         String
+  pedidoId            String
+  pedidoMontoTotal    Decimal              @db.Decimal(10, 2)
+  pedidoNotas         String?
+  porcentajeFacturado Decimal              @db.Decimal(5, 4)
+  montoEfectivo       Decimal              @db.Decimal(10, 2)
+  montoBase           Decimal              @db.Decimal(10, 2)
+  montoIva            Decimal              @db.Decimal(10, 2)
+  montoTransfer       Decimal              @db.Decimal(10, 2)
+
+  solicitud           SolicitudFacturacion @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  pedido              Pedido               @relation(fields: [pedidoId], references: [id])
+
+  @@unique([solicitudId, pedidoId])
+  @@index([pedidoId])
+  @@map("solicitud_items")
 }
