@@ -99,14 +99,20 @@ export async function GET(req: NextRequest) {
         facturas: {
           where: {
             estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
+            // Filtrar por fecha de entrega del pedido asociado
             ...(desde || hasta ? {
-              fecha: {
-                ...(desde && { gte: new Date(desde + "T00:00:00") }),
-                ...(hasta && { lte: new Date(hasta + "T23:59:59") }),
+              pedido: {
+                fechaEntrega: {
+                  ...(desde && { gte: new Date(desde + "T00:00:00") }),
+                  ...(hasta && { lte: new Date(hasta + "T23:59:59") }),
+                },
               },
             } : {}),
           },
-          include: { pagos: { select: { monto: true } } },
+          include: {
+            pagos: { select: { monto: true } },
+            pedido: { select: { fechaEntrega: true } },
+          },
         },
       },
       orderBy: { nombre: "asc" },
@@ -118,14 +124,21 @@ export async function GET(req: NextRequest) {
           const pagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
           return acc + Number(f.montoTotal) - pagado;
         }, 0);
-        // Fecha de la factura más antigua pendiente
+        // Fecha de entrega más antigua entre las facturas pendientes
+        const fechasEntrega = c.facturas
+          .map((f) => f.pedido?.fechaEntrega)
+          .filter(Boolean) as Date[];
+        const fechaEntregaMasAntigua = fechasEntrega.length > 0
+          ? fechasEntrega.reduce((oldest, d) => d < oldest ? d : oldest).toISOString()
+          : null;
+        // Fecha de factura más antigua (para referencia)
         const fechaPrimerFactura = c.facturas.length > 0
           ? c.facturas.reduce((oldest, f) =>
               new Date(f.fecha) < new Date(oldest) ? f.fecha.toISOString() : oldest,
               c.facturas[0].fecha.toISOString()
             )
           : null;
-        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: c.facturas.length, fechaPrimerFactura };
+        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: c.facturas.length, fechaPrimerFactura, fechaEntregaMasAntigua };
       })
       .filter((c) => c.deuda > 0)
       .sort((a, b) => b.deuda - a.deuda);
