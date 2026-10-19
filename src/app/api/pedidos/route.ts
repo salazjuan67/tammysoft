@@ -60,7 +60,10 @@ export async function GET(req: NextRequest) {
                 orderBy: { producto: { nombre: "asc" } },
               },
             }
-          : { _count: { select: { items: true } } }),
+          : {
+              _count: { select: { items: true } },
+              items: { select: { cantidad: true } },
+            }),
       },
       orderBy: [{ fechaEntrega: "desc" }, { createdAt: "desc" }],
       skip: (page - 1) * pageSize,

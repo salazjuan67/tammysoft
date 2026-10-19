@@ -171,9 +171,16 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
     setHeladeraModal(null);
   }
 
+  function totalPostresPedido(pedido: PedidoProduccion) {
+    return (pedido.items ?? []).reduce((s, item) => s + item.cantidad, 0);
+  }
+
   // Imprimir pedidos de un cliente (o un pedido individual) en ventana emergente
   function imprimirPedidosCliente(pedidosImprimir: PedidoProduccion[], clienteNombre: string) {
-    const rows = pedidosImprimir.map(p => `
+    const granTotal = pedidosImprimir.reduce((s, p) => s + totalPostresPedido(p), 0);
+    const rows = pedidosImprimir.map(p => {
+      const total = totalPostresPedido(p);
+      return `
       <div style="margin-bottom:12px; border:1px solid #eee; border-radius:6px; padding:10px;">
         <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
           <strong>${p.cliente.nombre}</strong>
@@ -185,7 +192,11 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
             `<div><strong style="color:#db2777">${item.cantidad}</strong> ${item.producto.nombre}</div>`
           ).join("")}
         </div>
-      </div>`).join("");
+        <div style="margin-top:8px; padding-top:6px; border-top:1px solid #eee; font-weight:700;">
+          Total postres: ${total}
+        </div>
+      </div>`;
+    }).join("");
 
     const html = `<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
@@ -197,7 +208,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
     </head><body>
       <h2 style="color:#db2777; margin-bottom:4px;">Postres Tammy Light</h2>
       <p style="color:#666; margin-bottom:12px; font-size:12px;">
-        ${clienteNombre} — ${formatDate(fecha)}
+        ${clienteNombre} — ${formatDate(fecha)} — ${granTotal} postres
       </p>
       ${rows}
       <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
@@ -308,6 +319,9 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               </div>
             ))}
         </div>
+        <p className="mt-2 pt-2 border-t border-gray-100 text-sm font-semibold text-gray-800">
+          Total postres: {totalPostresPedido(pedido)}
+        </p>
       </div>
     );
   }
@@ -374,7 +388,9 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
         {/* Encabezado solo en impresión */}
         <div className="hidden print:block mb-4">
           <h1 className="text-xl font-bold">Comanda — {formatDate(fecha)}</h1>
-          <p className="text-gray-600 text-sm">Postres Tammy Light · {pedidos.length} pedidos</p>
+          <p className="text-gray-600 text-sm">
+            Postres Tammy Light · {pedidos.length} pedidos · {pedidos.reduce((s, p) => s + totalPostresPedido(p), 0)} postres
+          </p>
         </div>
 
         {loading ? (
@@ -395,7 +411,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
                     <CardTitle className="text-base flex items-center justify-between">
                       <span>{getRangoLabel(rango)}</span>
                       <div className="flex items-center gap-2">
-                        <Badge>{pedidosRango.length} pedidos</Badge>
+                        <Badge>{pedidosRango.length} pedidos · {pedidosRango.reduce((s, p) => s + totalPostresPedido(p), 0)} postres</Badge>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -426,7 +442,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
                     <CardTitle className="text-base flex items-center justify-between">
                       <span>{grupo.nombre}</span>
                       <div className="flex items-center gap-2">
-                        <Badge>{grupo.pedidos.length} pedido{grupo.pedidos.length !== 1 ? "s" : ""}</Badge>
+                        <Badge>{grupo.pedidos.length} pedido{grupo.pedidos.length !== 1 ? "s" : ""} · {grupo.pedidos.reduce((s, p) => s + totalPostresPedido(p), 0)} postres</Badge>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -455,7 +471,10 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               .map(([catId, categoria]) => (
                 <Card key={catId} className="print:shadow-none print:border print:border-gray-300">
                   <CardHeader className="pb-3 bg-blue-50 rounded-t-xl print:py-2 print:bg-white print:border-b print:border-gray-300">
-                    <CardTitle className="text-base">{categoria.nombre}</CardTitle>
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span>{categoria.nombre}</span>
+                      <Badge>{categoria.items.reduce((s, i) => s + i.cantidadTotal, 0)} postres</Badge>
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 print:pt-2">
                     <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-2 print:gap-1">

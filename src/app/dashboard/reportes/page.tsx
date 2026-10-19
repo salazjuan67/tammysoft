@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, AreaChart, Area,
@@ -640,9 +641,14 @@ export default function ReportesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
           <p className="text-gray-500 text-sm mt-1">Análisis y métricas del negocio</p>
         </div>
-        <Button variant="outline" size="sm" onClick={recargar}>
-          <RefreshCcw className="h-3.5 w-3.5 mr-1.5" /> Actualizar
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/dashboard/reportes/dia">
+            <Button variant="outline" size="sm">Reporte del día</Button>
+          </Link>
+          <Button variant="outline" size="sm" onClick={recargar}>
+            <RefreshCcw className="h-3.5 w-3.5 mr-1.5" /> Actualizar
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

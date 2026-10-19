@@ -113,7 +113,9 @@ export default function DetallePedidoPage() {
 
       {/* Items */}
       <div className="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
-        <h2 className="font-semibold text-gray-900 px-5 py-4 border-b border-gray-50">Productos</h2>
+        <h2 className="font-semibold text-gray-900 px-5 py-4 border-b border-gray-50">
+          Productos · Total postres: {pedido.items.reduce((s, i) => s + i.cantidad, 0)}
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -136,6 +138,11 @@ export default function DetallePedidoPage() {
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatCurrency(Number(item.subtotal))}</td>
                 </tr>
               ))}
+              <tr className="border-t border-gray-100 bg-gray-50">
+                <td className="px-4 py-3 font-bold text-gray-900">Total postres</td>
+                <td className="px-4 py-3 text-right font-bold text-gray-900">{pedido.items.reduce((s, i) => s + i.cantidad, 0)}</td>
+                <td colSpan={2}></td>
+              </tr>
               <tr className="border-t border-gray-200 bg-pink-50/50">
                 <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-900">Total</td>
                 <td className="px-4 py-3 text-right font-bold text-pink-600 text-base">{formatCurrency(Number(pedido.montoTotal))}</td>

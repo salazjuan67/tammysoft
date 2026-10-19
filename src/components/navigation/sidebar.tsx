@@ -61,6 +61,12 @@ const navItems: NavItem[] = [
     roles: ["ADMIN", "OPERARIO"],
   },
   {
+    href: "/dashboard/reportes/dia",
+    label: "Reporte del día",
+    icon: <BarChart3 className="h-5 w-5" />,
+    roles: ["ADMIN", "OPERARIO"],
+  },
+  {
     href: "/dashboard/reportes/distribuidores",
     label: "Reporte Distribuidores",
     icon: <BarChart3 className="h-5 w-5" />,

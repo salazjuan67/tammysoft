@@ -29,6 +29,7 @@ interface PedidoResumen {
   notas: string | null;
   createdAt: string;
   _count: { items: number };
+  items?: { cantidad: number }[];
 }
 
 interface ItemDetalle {
@@ -329,6 +330,9 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           {(fechaDesde || fechaHasta) && (
             <p className="text-gray-500 text-sm">{fechaDesde && formatDate(fechaDesde)}{fechaDesde !== fechaHasta && fechaHasta ? ` — ${formatDate(fechaHasta)}` : ""}</p>
           )}
+          <p className="text-gray-700 text-sm mt-1">
+            Total postres: {filteredPedidos.reduce((s, p) => s + (p.items ?? []).reduce((acc, i) => acc + i.cantidad, 0), 0)}
+          </p>
         </div>
       <Card>
         <CardContent className="p-0">
@@ -387,7 +391,10 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
                         <td className="px-4 py-3 text-gray-600">{formatDate(pedido.fechaEntrega)}</td>
                         <td className="px-4 py-3 text-gray-600">{getRangoLabel(pedido.rangoHorario)}</td>
-                        <td className="px-4 py-3 text-gray-600">{pedido._count.items} productos</td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {(pedido.items ?? []).reduce((s, i) => s + i.cantidad, 0)} postres
+                          <span className="text-gray-400 print:hidden"> · {pedido._count.items} prod.</span>
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatCurrency(Number(pedido.montoTotal))}
                         </td>
@@ -510,7 +517,9 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
               {/* Lista de productos */}
               <div>
-                <h4 className="font-medium text-gray-700 mb-2">Productos ({pedidoVer.items.length})</h4>
+                <h4 className="font-medium text-gray-700 mb-2">
+                  Productos ({pedidoVer.items.length}) · Total postres: {pedidoVer.items.reduce((s, i) => s + i.cantidad, 0)}
+                </h4>
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
@@ -535,6 +544,11 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                       ))}
                     </tbody>
                     <tfoot>
+                      <tr className="border-t border-gray-200 bg-gray-50">
+                        <td className="px-3 py-2 font-bold text-gray-700">Total postres</td>
+                        <td className="px-3 py-2 text-center font-bold text-gray-900">{pedidoVer.items.reduce((s, i) => s + i.cantidad, 0)}</td>
+                        <td colSpan={2}></td>
+                      </tr>
                       <tr className="border-t-2 border-gray-200 bg-pink-50">
                         <td colSpan={3} className="px-3 py-2 font-bold text-gray-700">Total</td>
                         <td className="px-3 py-2 text-right font-bold text-pink-600 text-sm">{formatCurrency(Number(pedidoVer.montoTotal))}</td>
