@@ -295,7 +295,10 @@ export function FormularioPedido({
                     className={`flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors ${cantidad > 0 ? "bg-pink-50" : ""}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{prod.nombre}</p>
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {prod.nombre}
+                        <span className="text-xs font-normal text-gray-400"> · {prod.categoriaNombre}</span>
+                      </p>
                       <p className="text-xs text-gray-500">{formatCurrency(Number(prod.precio))}</p>
                     </div>
                     <div className="flex items-center gap-2 ml-4">

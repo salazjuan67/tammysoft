@@ -149,7 +149,12 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                           className={`flex items-center gap-3 px-4 py-3 transition-colors ${cantidad > 0 ? "bg-pink-50" : "bg-white hover:bg-gray-50"}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">{prod.nombre}</p>
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {prod.nombre}
+                              {prod.categoria?.nombre && (
+                                <span className="text-xs font-normal text-gray-400"> · {prod.categoria.nombre}</span>
+                              )}
+                            </p>
                             {prod.descripcion && (
                               <p className="text-xs text-gray-400 truncate">{prod.descripcion}</p>
                             )}
