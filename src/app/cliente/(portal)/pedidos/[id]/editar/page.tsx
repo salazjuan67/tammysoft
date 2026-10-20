@@ -15,7 +15,7 @@ interface PedidoDetalle {
   rangoHorario: string;
   notas: string | null;
   montoTotal: number;
-  items: { productoId: string; cantidad: number; precioUnitario: number; producto: { nombre: string } }[];
+  items: { productoId: string; cantidad: number; precioUnitario: number; producto: { nombre: string; categoria?: { nombre: string } } }[];
   validacion: ValidacionEdicion;
 }
 
@@ -70,6 +70,7 @@ export default function EditarPedidoPage() {
         nombre: i.producto.nombre,
         precio: Number(i.precioUnitario),
         cantidad: i.cantidad,
+        categoria: i.producto.categoria?.nombre,
       }))
     );
     setCargando(false);

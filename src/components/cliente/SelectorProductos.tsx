@@ -47,7 +47,13 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
     if (nuevaCantidad === 0) {
       onCambio(sinEste);
     } else {
-      onCambio([...sinEste, { productoId: producto.id, nombre: producto.nombre, precio: producto.precio, cantidad: nuevaCantidad }]);
+      onCambio([...sinEste, {
+        productoId: producto.id,
+        nombre: producto.nombre,
+        precio: producto.precio,
+        cantidad: nuevaCantidad,
+        categoria: producto.categoria?.nombre,
+      }]);
     }
   }
 
@@ -149,12 +155,7 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                           className={`flex items-center gap-3 px-4 py-3 transition-colors ${cantidad > 0 ? "bg-pink-50" : "bg-white hover:bg-gray-50"}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">
-                              {prod.nombre}
-                              {prod.categoria?.nombre && (
-                                <span className="text-xs font-normal text-gray-400"> · {prod.categoria.nombre}</span>
-                              )}
-                            </p>
+                            <p className="text-sm font-medium text-gray-800 truncate">{prod.nombre}</p>
                             {prod.descripcion && (
                               <p className="text-xs text-gray-400 truncate">{prod.descripcion}</p>
                             )}
@@ -185,6 +186,9 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                               className="w-7 h-7 rounded-full border border-gray-200 text-gray-600 hover:border-pink-400 hover:text-pink-600 text-base leading-none flex items-center justify-center transition-colors"
                             >+</button>
                           </div>
+                          {prod.categoria?.nombre && (
+                            <span className="text-xs text-gray-400 w-24 text-right flex-shrink-0 truncate">{prod.categoria.nombre}</span>
+                          )}
                         </div>
                       );
                     })}
@@ -199,7 +203,7 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
       <p className="text-xs text-gray-400 text-center">
         {filtrados.length} producto{filtrados.length !== 1 ? "s" : ""}
         {totalSeleccionados > 0 && (
-          <span className="text-pink-600 font-medium"> · {totalSeleccionados} unidades seleccionadas</span>
+          <span className="text-pink-600 font-semibold"> · Total del pedido: {totalSeleccionados} unidades</span>
         )}
       </p>
     </div>

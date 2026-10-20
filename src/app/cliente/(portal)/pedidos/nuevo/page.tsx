@@ -61,11 +61,12 @@ function NuevoPedidoInner() {
                 }
                 return true;
               })
-              .map((item: { productoId: string; cantidad: number; precioUnitario: number; producto?: { nombre: string } }) => ({
+              .map((item: { productoId: string; cantidad: number; precioUnitario: number; producto?: { nombre: string; categoria?: { nombre: string } } }) => ({
                 productoId: item.productoId,
                 nombre: item.producto?.nombre ?? item.productoId,
                 precio: Number(item.precioUnitario),
                 cantidad: item.cantidad,
+                categoria: item.producto?.categoria?.nombre,
               }));
             setCarrito(items);
             setRangoHorario(pedido.rangoHorario ?? "SIN_ESPECIFICAR");

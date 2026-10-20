@@ -149,6 +149,7 @@ export function FormularioPedido({
   }
 
   const montoTotal = items.reduce((acc, i) => acc + i.subtotal, 0);
+  const cantidadTotal = items.reduce((acc, i) => acc + i.cantidad, 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -295,10 +296,7 @@ export function FormularioPedido({
                     className={`flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors ${cantidad > 0 ? "bg-pink-50" : ""}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {prod.nombre}
-                        <span className="text-xs font-normal text-gray-400"> · {prod.categoriaNombre}</span>
-                      </p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{prod.nombre}</p>
                       <p className="text-xs text-gray-500">{formatCurrency(Number(prod.precio))}</p>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
@@ -332,6 +330,7 @@ export function FormularioPedido({
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
+                      <span className="text-xs text-gray-400 w-24 text-right truncate">{prod.categoriaNombre}</span>
                     </div>
                   </div>
                 );
@@ -347,8 +346,9 @@ export function FormularioPedido({
           <h4 className="font-medium text-sm text-gray-700">Resumen del pedido</h4>
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {items.map((item) => (
-              <div key={item.productoId} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 flex-1">{item.nombre}</span>
+              <div key={item.productoId} className="flex items-center justify-between text-sm gap-2">
+                <span className="text-gray-600 flex-1 truncate">{item.nombre}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">{item.categoriaNombre}</span>
                 <div className="flex items-center gap-3 ml-2">
                   <Badge variant="secondary" className="text-xs">{item.cantidad}</Badge>
                   <span className="font-medium w-24 text-right">{formatCurrency(item.subtotal)}</span>
@@ -363,9 +363,15 @@ export function FormularioPedido({
               </div>
             ))}
           </div>
-          <div className="pt-2 border-t border-gray-200 flex justify-between font-bold">
-            <span>Total</span>
-            <span className="text-pink-600 text-lg">{formatCurrency(montoTotal)}</span>
+          <div className="pt-2 border-t border-gray-200 space-y-1">
+            <div className="flex justify-between text-sm font-semibold text-gray-800">
+              <span>Total productos</span>
+              <span>{cantidadTotal} unidades</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>Total</span>
+              <span className="text-pink-600 text-lg">{formatCurrency(montoTotal)}</span>
+            </div>
           </div>
         </div>
       )}

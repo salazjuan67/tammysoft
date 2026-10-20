@@ -7,6 +7,7 @@ export interface ItemCarrito {
   nombre: string;
   precio: number;
   cantidad: number;
+  categoria?: string;
 }
 
 interface ResumenPedidoProps {
@@ -38,11 +39,14 @@ export default function ResumenPedido({
       ) : (
         <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-1">
           {items.map((item) => (
-            <div key={item.productoId} className="flex justify-between text-sm">
+            <div key={item.productoId} className="flex justify-between text-sm gap-2">
               <span className="text-gray-700 truncate flex-1">
                 <span className="font-medium text-pink-600">{item.cantidad}×</span> {item.nombre}
               </span>
-              <span className="font-medium text-gray-900 ml-2 flex-shrink-0">
+              {item.categoria && (
+                <span className="text-xs text-gray-400 flex-shrink-0">{item.categoria}</span>
+              )}
+              <span className="font-medium text-gray-900 flex-shrink-0">
                 {formatCurrency(item.precio * item.cantidad)}
               </span>
             </div>
@@ -51,8 +55,8 @@ export default function ResumenPedido({
       )}
 
       <div className="border-t border-gray-100 pt-3 space-y-1">
-        <div className="flex justify-between text-xs text-gray-500">
-          <span>Cantidad total</span>
+        <div className="flex justify-between text-sm font-semibold text-gray-800">
+          <span>Total productos</span>
           <span>{totalItems} unidades</span>
         </div>
         {fechaEntrega && (
