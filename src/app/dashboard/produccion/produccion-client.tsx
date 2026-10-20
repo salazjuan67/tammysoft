@@ -77,11 +77,12 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
   const printRef = useRef<HTMLDivElement>(null);
 
   // Modal "Listo en heladera"
-  const [heladeraModal, setHeladeraModal] = useState<{ pedidoId: string; clienteId: string; clienteNombre: string } | null>(null);
+  const [heladeraModal, setHeladeraModal] = useState<{ pedidoIds: string[]; clienteNombre: string } | null>(null);
   const [numeroHeladera, setNumeroHeladera] = useState("");
   const [estante, setEstante] = useState("");
   const [horarioEntrega, setHorarioEntrega] = useState("");
   const [entregando, setEntregando] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
@@ -119,6 +120,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
         mapa.set(p.id, p);
       }
       setPedidos(sortPedidos(Array.from(mapa.values())));
+      setSeleccionados(new Set());
     } finally {
       setLoading(false);
     }
@@ -171,18 +173,71 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
     setNumeroHeladera("");
     setEstante("");
     setHorarioEntrega("");
-    setHeladeraModal({ pedidoId: pedido.id, clienteId: pedido.cliente.id, clienteNombre: pedido.cliente.nombre });
+    setHeladeraModal({ pedidoIds: [pedido.id], clienteNombre: pedido.cliente.nombre });
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTodos() {
+    if (seleccionados.size === pedidos.length) setSeleccionados(new Set());
+    else setSeleccionados(new Set(pedidos.map((p) => p.id)));
+  }
+
+  async function ejecutarMasivo(estado: string, extra: Record<string, unknown> = {}, ids = [...seleccionados]) {
+    if (ids.length === 0) return;
+    setEntregando(true);
+    try {
+      const res = await fetch("/api/pedidos/estado-masivo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, estado, tasaIva: 0, ...extra }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast({ title: json.message ?? "Pedidos actualizados" });
+        setSeleccionados(new Set());
+        cargarPedidos(fecha);
+      } else {
+        toast({ title: json.error ?? "Error al actualizar", variant: "destructive" });
+      }
+    } finally {
+      setEntregando(false);
+    }
+  }
+
+  function abrirHeladeraMasivo() {
+    const ids = [...seleccionados].filter((id) => pedidos.find((p) => p.id === id)?.estado === "EN_PRODUCCION");
+    if (ids.length === 0) {
+      toast({ title: "Seleccioná pedidos en producción", variant: "destructive" });
+      return;
+    }
+    setNumeroHeladera("");
+    setEstante("");
+    setHorarioEntrega("");
+    setHeladeraModal({ pedidoIds: ids, clienteNombre: `${ids.length} pedidos` });
   }
 
   async function confirmarListoEnHeladera() {
     if (!heladeraModal) return;
-    setEntregando(true);
-    await cambiarEstadoPedido(heladeraModal.pedidoId, "ENTREGADO", {
+    const extra = {
       ...(numeroHeladera && { numeroHeladera }),
       ...(estante && { estante }),
-      ...(horarioEntrega && { horarioEntrega }),
-    });
-    setEntregando(false);
+      ...(horarioEntrega && heladeraModal.pedidoIds.length === 1 && { horarioEntrega }),
+    };
+    if (heladeraModal.pedidoIds.length === 1) {
+      setEntregando(true);
+      await cambiarEstadoPedido(heladeraModal.pedidoIds[0], "ENTREGADO", extra);
+      setEntregando(false);
+    } else {
+      await ejecutarMasivo("ENTREGADO", extra, heladeraModal.pedidoIds);
+    }
     setHeladeraModal(null);
   }
 
@@ -293,7 +348,14 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
     return (
       <div className="border border-gray-100 rounded-lg p-3">
         <div className="flex items-center justify-between mb-2">
-          <div>
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={seleccionados.has(pedido.id)}
+              onChange={() => toggleSeleccionado(pedido.id)}
+              className="mt-1 h-4 w-4 accent-pink-600 no-print"
+            />
+            <div>
             <p className="font-semibold text-gray-900">{pedido.cliente.nombre}</p>
             {pedido.notas && (
               <p className="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mt-0.5 inline-block">
@@ -301,6 +363,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               </p>
             )}
             <p className="text-xs text-gray-400 mt-0.5">{getRangoLabel(pedido.rangoHorario)}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 no-print">
             <Badge variant={pedido.estado === "EN_PRODUCCION" ? "info" : "warning"} className="text-xs">
@@ -394,6 +457,9 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               <ChevronRight className="h-4 w-4" />
             </Button>
             <div className="flex gap-2 ml-auto">
+              <Button size="sm" variant="outline" onClick={toggleTodos} className="no-print">
+                {seleccionados.size === pedidos.length && pedidos.length > 0 ? "Quitar selección" : "Seleccionar todos"}
+              </Button>
               {(["categoria", "horario", "cliente"] as const).map((v) => (
                 <Button
                   key={v}
@@ -408,6 +474,19 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
           </div>
         </CardContent>
       </Card>
+
+      {seleccionados.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2 no-print">
+          <span className="text-sm font-medium text-pink-800">{seleccionados.size} seleccionados</span>
+          <Button size="sm" variant="outline" disabled={entregando} onClick={() => ejecutarMasivo("EN_PRODUCCION", { fechaProduccion: fecha })}>
+            Iniciar producción
+          </Button>
+          <Button size="sm" variant="success" disabled={entregando} onClick={abrirHeladeraMasivo}>
+            Listo en heladera
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSeleccionados(new Set())}>Limpiar</Button>
+        </div>
+      )}
 
       {/* Contenido imprimible */}
       <div ref={printRef}>
@@ -549,6 +628,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               </div>
             </div>
 
+            {heladeraModal?.pedidoIds.length === 1 && (
             <div className="space-y-1">
               <Label className="text-xs">Horario de entrega del cliente (se guarda para este cliente)</Label>
               <Input
@@ -558,6 +638,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               />
               <p className="text-xs text-gray-400">Si lo completás, se actualiza en la ficha del cliente.</p>
             </div>
+            )}
 
             <div className="flex gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setHeladeraModal(null)}>Cancelar</Button>

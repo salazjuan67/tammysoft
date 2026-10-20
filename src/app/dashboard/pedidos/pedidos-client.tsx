@@ -100,8 +100,10 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
 
   // Modal fecha de producción para EN_PRODUCCION
-  const [prodModal, setProdModal] = useState<{ pedidoId: string } | null>(null);
+  const [prodModal, setProdModal] = useState<{ pedidoIds: string[] } | null>(null);
   const [fechaProdSeleccionada, setFechaProdSeleccionada] = useState(getHoy());
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [accionMasiva, setAccionMasiva] = useState(false);
 
   const cargarPedidos = useCallback(async () => {
     setLoading(true);
@@ -119,6 +121,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       const json = await res.json();
       setPedidos(json.data ?? []);
       setTotal(json.total ?? 0);
+      setSeleccionados(new Set());
     } finally {
       setLoading(false);
     }
@@ -142,14 +145,13 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
     limpiarFechas();
   }
 
-  // Iniciar cambio de estado
   function iniciarCambioEstado(pedidoId: string, nuevoEstado: string) {
     if (nuevoEstado === "ENTREGADO") {
       setIvaSeleccionado(0);
       setIvaModal({ pedidoId, nuevoEstado });
     } else if (nuevoEstado === "EN_PRODUCCION") {
       setFechaProdSeleccionada(getHoy());
-      setProdModal({ pedidoId });
+      setProdModal({ pedidoIds: [pedidoId] });
     } else {
       ejecutarCambioEstado(pedidoId, nuevoEstado, 0);
     }
@@ -157,7 +159,11 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
 
   async function confirmarProduccion() {
     if (!prodModal) return;
-    await ejecutarCambioEstado(prodModal.pedidoId, "EN_PRODUCCION", 0, fechaProdSeleccionada);
+    if (prodModal.pedidoIds.length === 1) {
+      await ejecutarCambioEstado(prodModal.pedidoIds[0], "EN_PRODUCCION", 0, fechaProdSeleccionada);
+    } else {
+      await ejecutarMasivo("EN_PRODUCCION", { fechaProduccion: fechaProdSeleccionada }, prodModal.pedidoIds);
+    }
     setProdModal(null);
   }
 
@@ -214,6 +220,44 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
   const totalPages = Math.ceil(total / pageSize);
   const esAdmin = userRol === "ADMIN" || userRol === "OPERARIO";
   const hayFiltroFecha = fechaDesde || fechaHasta;
+  const seleccionables = filteredPedidos.filter((p) => p.estado !== "CANCELADO" && p.estado !== "ENTREGADO");
+  const todosSeleccionados = seleccionables.length > 0 && seleccionables.every((p) => seleccionados.has(p.id));
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTodos() {
+    if (todosSeleccionados) setSeleccionados(new Set());
+    else setSeleccionados(new Set(seleccionables.map((p) => p.id)));
+  }
+
+  async function ejecutarMasivo(estado: string, extra: Record<string, unknown> = {}, ids = [...seleccionados]) {
+    if (ids.length === 0) return;
+    setAccionMasiva(true);
+    try {
+      const res = await fetch("/api/pedidos/estado-masivo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, estado, tasaIva: 0, ...extra }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast({ title: json.message ?? "Pedidos actualizados" });
+        setSeleccionados(new Set());
+        cargarPedidos();
+      } else {
+        toast({ title: json.error ?? "Error al actualizar", variant: "destructive" });
+      }
+    } finally {
+      setAccionMasiva(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -350,9 +394,31 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {esAdmin && seleccionados.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 border-b border-pink-100 bg-pink-50 px-4 py-2 print:hidden">
+                  <span className="text-sm font-medium text-pink-800">{seleccionados.size} seleccionados</span>
+                  <Button size="sm" variant="outline" disabled={accionMasiva} onClick={() => { setFechaProdSeleccionada(getHoy()); setProdModal({ pedidoIds: [...seleccionados] }); }}>
+                    Enviar a producción
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={accionMasiva} onClick={() => ejecutarMasivo("ENTREGADO")}>
+                    Entregar
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-red-600" disabled={accionMasiva} onClick={() => {
+                    if (confirm(`¿Cancelar ${seleccionados.size} pedido${seleccionados.size !== 1 ? "s" : ""}?`)) ejecutarMasivo("CANCELADO");
+                  }}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSeleccionados(new Set())}>Limpiar</Button>
+                </div>
+              )}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
+                    {esAdmin && (
+                      <th className="w-10 px-3 py-3 print:hidden">
+                        <input type="checkbox" checked={todosSeleccionados} onChange={toggleTodos} className="h-4 w-4 accent-pink-600" />
+                      </th>
+                    )}
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Distribuidor</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente final / Notas</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha entrega</th>
@@ -373,6 +439,17 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                     const esEntregado = pedido.estado === "ENTREGADO";
                     return (
                       <tr key={pedido.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        {esAdmin && (
+                          <td className="px-3 py-3 print:hidden">
+                            <input
+                              type="checkbox"
+                              disabled={esCancelado || esEntregado}
+                              checked={seleccionados.has(pedido.id)}
+                              onChange={() => toggleSeleccionado(pedido.id)}
+                              className="h-4 w-4 accent-pink-600 disabled:opacity-30"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 font-medium text-gray-900">{pedido.cliente.nombre}</td>
 
                         {/* Notas — al lado del distribuidor */}
@@ -600,7 +677,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-gray-600">
-              Elegí el día en que se va a fabricar este pedido.
+              Elegí el día de fabricación{prodModal && prodModal.pedidoIds.length > 1 ? ` para ${prodModal.pedidoIds.length} pedidos` : ""}.
             </p>
             <div className="space-y-2">
               <Label>Fecha de producción</Label>
@@ -612,8 +689,8 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setProdModal(null)}>Cancelar</Button>
-              <Button onClick={confirmarProduccion} disabled={cambiandoEstado || !fechaProdSeleccionada}>
-                {cambiandoEstado ? "Guardando..." : "Confirmar"}
+              <Button onClick={confirmarProduccion} disabled={cambiandoEstado || accionMasiva || !fechaProdSeleccionada}>
+                {cambiandoEstado || accionMasiva ? "Guardando..." : "Confirmar"}
               </Button>
             </div>
           </div>
