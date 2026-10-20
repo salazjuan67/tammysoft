@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, RANGOS_HORARIO, getRangoLabel } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { Search, X, Minus, Plus, Eye, Copy } from "lucide-react";
@@ -487,11 +486,25 @@ export function FormularioPedido({
             ) : (
               items.map((item) => (
                 <div key={item.productoId} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="max-w-[90px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
+                  <span className="max-w-[80px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
                   <span className="min-w-0 flex-1 truncate text-gray-600">{item.nombre}</span>
-                  <Badge variant="secondary" className="text-xs">{item.cantidad}</Badge>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad - 1)}>
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min="0"
+                      className="h-6 w-10 px-1 text-center text-xs"
+                      value={item.cantidad}
+                      onChange={(e) => setCantidad(item.productoId, parseInt(e.target.value) || 0)}
+                    />
+                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad + 1)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
                   <span className="w-16 shrink-0 text-right text-xs font-medium">{formatCurrency(item.subtotal)}</span>
-                  <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500">
+                  <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
