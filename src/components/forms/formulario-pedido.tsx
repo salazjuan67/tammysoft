@@ -155,8 +155,9 @@ export function FormularioPedido({
       c.productos.map((p) => ({ ...p, categoriaNombre: c.nombre }))
     );
     return todosProd.filter((p) => {
-      const matchBusqueda = busqueda
-        ? p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+      const q = busqueda.toLowerCase().trim();
+      const matchBusqueda = q
+        ? p.nombre.toLowerCase().includes(q) || p.categoriaNombre.toLowerCase().includes(q)
         : true;
       const matchCategoria = categoriaActiva === "todas" || p.categoriaId === categoriaActiva;
       return matchBusqueda && matchCategoria;
@@ -260,7 +261,7 @@ export function FormularioPedido({
     const q = busquedaHistorial.toLowerCase().trim();
     if (!q) return true;
     const fecha = formatDate(p.fechaEntrega);
-    const productos = p.items.map((i) => i.producto.nombre).join(" ");
+    const productos = p.items.map((i) => `${i.producto.nombre} ${i.producto.categoria?.nombre ?? ""}`).join(" ");
     return `${p.notas ?? ""} ${fecha} ${productos}`.toLowerCase().includes(q);
   });
 
@@ -383,7 +384,7 @@ export function FormularioPedido({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 className="h-9 pl-9"
-                placeholder="Buscar por fecha, notas o producto..."
+                placeholder="Buscar por fecha, notas, producto o categoría..."
                 value={busquedaHistorial}
                 onChange={(e) => setBusquedaHistorial(e.target.value)}
               />
@@ -452,7 +453,7 @@ export function FormularioPedido({
           <div className="relative shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              placeholder="Buscar postre..."
+              placeholder="Buscar postre o categoría..."
               className="h-9 pl-9"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}

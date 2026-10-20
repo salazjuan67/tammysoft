@@ -69,8 +69,11 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
   if (cargando) return <p className="text-gray-400 text-sm text-center py-8">Cargando catálogo...</p>;
 
   // Build grouped structure
-  const filtrados = busqueda
-    ? productos.filter((p) => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  const q = busqueda.toLowerCase().trim();
+  const filtrados = q
+    ? productos.filter((p) =>
+        p.nombre.toLowerCase().includes(q) || (p.categoria?.nombre ?? "").toLowerCase().includes(q)
+      )
     : productos;
 
   // Group by category, sorted by categoria.orden then nombre
@@ -99,7 +102,7 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar producto en todas las categorías..."
+          placeholder="Buscar producto o categoría..."
           className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
         />
         {busqueda && (

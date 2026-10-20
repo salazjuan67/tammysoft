@@ -18,7 +18,12 @@ export async function GET(req: NextRequest) {
     where: {
       ...(soloActivos && { activo: true }),
       ...(categoriaId && { categoriaId }),
-      ...(search && { nombre: { contains: search, mode: "insensitive" } }),
+      ...(search && {
+        OR: [
+          { nombre: { contains: search, mode: "insensitive" } },
+          { categoria: { nombre: { contains: search, mode: "insensitive" } } },
+        ],
+      }),
     },
     include: { categoria: true },
     orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],

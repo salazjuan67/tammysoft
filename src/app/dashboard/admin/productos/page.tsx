@@ -205,9 +205,11 @@ export default function ProductosAdminPage() {
     }
   }
 
-  const productosFiltradosCalc = productos.filter((p) =>
-    search ? p.nombre.toLowerCase().includes(search.toLowerCase()) : true
-  );
+  const productosFiltradosCalc = productos.filter((p) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return p.nombre.toLowerCase().includes(q) || p.categoria.nombre.toLowerCase().includes(q);
+  });
 
   const productosFiltrados = productosFiltradosCalc;
 
@@ -327,7 +329,7 @@ export default function ProductosAdminPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input placeholder="Buscar producto..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input placeholder="Buscar producto o categoría..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
               <SelectTrigger className="w-full sm:w-52">
