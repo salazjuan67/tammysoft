@@ -69,7 +69,24 @@ function agruparPorCategoria(items: ItemAgg[]) {
     if (!grupos.has(item.categoria)) grupos.set(item.categoria, []);
     grupos.get(item.categoria)!.push(item);
   }
-  return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
+  return [...grupos.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, "es"))
+    .map(([cat, prods]) => [cat, [...prods].sort((a, b) => a.producto.localeCompare(b.producto, "es"))] as const);
+}
+
+function agruparItemsPedido(items: Array<{ nombre: string; cantidad: number; categoria: string }>) {
+  const grupos = new Map<string, typeof items>();
+  for (const item of items) {
+    const cat = item.categoria || "Sin categoría";
+    if (!grupos.has(cat)) grupos.set(cat, []);
+    grupos.get(cat)!.push(item);
+  }
+  return [...grupos.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, "es"))
+    .map(([categoria, prods]) => ({
+      categoria,
+      items: [...prods].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+    }));
 }
 
 export default function ReporteDiaPage() {
@@ -258,10 +275,18 @@ export default function ReporteDiaPage() {
                               <span className="text-gray-600">{formatCurrency(pedido.montoTotal)}</span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-1 text-xs">
-                            {pedido.items.map((item) => (
-                              <div key={`${pedido.id}-${item.nombre}`}>
-                                <span className="font-bold text-pink-600">{item.cantidad}</span> {item.nombre}
+                          <div className="space-y-1.5">
+                            {agruparItemsPedido(pedido.items).map((grupo) => (
+                              <div key={`${pedido.id}-${grupo.categoria}`}>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{grupo.categoria}</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-1 text-xs">
+                                  {grupo.items.map((item) => (
+                                    <div key={`${pedido.id}-${item.nombre}`}>
+                                      <span className="font-bold text-pink-600">{item.cantidad}</span> {item.nombre}
+                                      <span className="text-gray-400"> · {grupo.categoria}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -316,7 +341,7 @@ function ListaPostres({
                 <div className="space-y-1">
                   {prods.map((p) => (
                     <div key={p.producto} className="flex justify-between text-sm">
-                      <span className="text-gray-700">{p.producto}</span>
+                      <span className="text-gray-700">{p.producto} <span className="text-xs text-gray-400">· {p.categoria}</span></span>
                       <span className={`font-bold ${color}`}>{p.cantidad}</span>
                     </div>
                   ))}

@@ -53,12 +53,27 @@ function sortPedidos(arr: PedidoProduccion[]) {
   });
 }
 
+function agruparItemsPorCategoria(items: ProductoItem[]) {
+  const grupos = new Map<string, ProductoItem[]>();
+  for (const item of items ?? []) {
+    const cat = item.producto.categoria?.nombre ?? "Sin categoría";
+    if (!grupos.has(cat)) grupos.set(cat, []);
+    grupos.get(cat)!.push(item);
+  }
+  return [...grupos.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, "es"))
+    .map(([categoria, prods]) => ({
+      categoria,
+      items: [...prods].sort((a, b) => a.producto.nombre.localeCompare(b.producto.nombre, "es")),
+    }));
+}
+
 export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIniciales, fechaInicial }: ProduccionClientProps) {
   const [fecha, setFecha] = useState(new Date(fechaInicial).toISOString().split("T")[0]);
   const [pedidos, setPedidos] = useState(() => sortPedidos(pedidosIniciales));
   const [alertas, setAlertas] = useState(alertasIniciales);
   const [loading, setLoading] = useState(false);
-  const [vistaAgrupacion, setVistaAgrupacion] = useState<"horario" | "categoria" | "cliente">("horario");
+  const [vistaAgrupacion, setVistaAgrupacion] = useState<"horario" | "categoria" | "cliente">("categoria");
   const printRef = useRef<HTMLDivElement>(null);
 
   // Modal "Listo en heladera"
@@ -187,11 +202,14 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
           <span style="color:#888; font-size:12px;">${getRangoLabel(p.rangoHorario)}</span>
         </div>
         ${p.notas ? `<div style="background:#fef3c7; color:#92400e; font-size:11px; border-radius:4px; padding:3px 6px; margin-bottom:6px;">📝 ${p.notas}</div>` : ""}
-        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:4px;">
-          ${p.items.sort((a,b) => a.producto.nombre.localeCompare(b.producto.nombre)).map(item =>
-            `<div><strong style="color:#db2777">${item.cantidad}</strong> ${item.producto.nombre}</div>`
-          ).join("")}
-        </div>
+        ${agruparItemsPorCategoria(p.items).map((grupo) => `
+          <p style="margin:8px 0 4px; font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.04em;">${grupo.categoria}</p>
+          <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:4px;">
+            ${grupo.items.map(item =>
+              `<div><strong style="color:#db2777">${item.cantidad}</strong> ${item.producto.nombre} <span style="color:#9ca3af; font-size:10px;">· ${grupo.categoria}</span></div>`
+            ).join("")}
+          </div>
+        `).join("")}
         <div style="margin-top:8px; padding-top:6px; border-top:1px solid #eee; font-weight:700;">
           Total postres: ${total}
         </div>
@@ -261,7 +279,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
   });
 
   Object.values(itemsPorCategoria).forEach((cat) => {
-    cat.items.sort((a, b) => a.productoNombre.localeCompare(b.productoNombre));
+    cat.items.sort((a, b) => a.productoNombre.localeCompare(b.productoNombre, "es"));
   });
 
   const navFecha = (dias: number) => {
@@ -309,15 +327,23 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
             )}
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-          {pedido.items
-            .sort((a, b) => a.producto.nombre.localeCompare(b.producto.nombre))
-            .map((item) => (
-              <div key={item.id} className="flex items-center gap-2 text-sm">
-                <span className="font-bold text-pink-600 w-6 shrink-0">{item.cantidad}</span>
-                <span className="text-gray-700">{item.producto.nombre}</span>
+        <div className="space-y-2">
+          {agruparItemsPorCategoria(pedido.items).map((grupo) => (
+            <div key={grupo.categoria}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">{grupo.categoria}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                {grupo.items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 text-sm">
+                    <span className="font-bold text-pink-600 w-6 shrink-0">{item.cantidad}</span>
+                    <span className="text-gray-700">
+                      {item.producto.nombre}
+                      <span className="text-xs text-gray-400"> · {grupo.categoria}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          ))}
         </div>
         <p className="mt-2 pt-2 border-t border-gray-100 text-sm font-semibold text-gray-800">
           Total postres: {totalPostresPedido(pedido)}
@@ -368,7 +394,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
               <ChevronRight className="h-4 w-4" />
             </Button>
             <div className="flex gap-2 ml-auto">
-              {(["horario", "cliente", "categoria"] as const).map((v) => (
+              {(["categoria", "horario", "cliente"] as const).map((v) => (
                 <Button
                   key={v}
                   size="sm"
@@ -467,7 +493,7 @@ export function ProduccionClient({ pedidosIniciales, alertasNoLeidas: alertasIni
           // Vista por categoría (totales para producción)
           <div className="space-y-4 print:space-y-2">
             {Object.entries(itemsPorCategoria)
-              .sort(([, a], [, b]) => a.nombre.localeCompare(b.nombre))
+              .sort(([, a], [, b]) => a.nombre.localeCompare(b.nombre, "es"))
               .map(([catId, categoria]) => (
                 <Card key={catId} className="print:shadow-none print:border print:border-gray-300">
                   <CardHeader className="pb-3 bg-blue-50 rounded-t-xl print:py-2 print:bg-white print:border-b print:border-gray-300">
