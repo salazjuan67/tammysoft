@@ -564,9 +564,15 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       </Dialog>
 
       {/* Modal formulario nuevo/editar */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
+      <Dialog open={showForm} onOpenChange={(open) => {
+        if (!open) { setShowForm(false); setPedidoEditar(null); }
+      }}>
+        <DialogContent
+          className="left-0 top-0 h-screen w-screen max-h-none max-w-none translate-x-0 translate-y-0 rounded-none p-4 sm:max-w-none overflow-hidden flex flex-col gap-3"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {pedidoEditar ? "Editar pedido" : "Nuevo pedido"}
             </DialogTitle>

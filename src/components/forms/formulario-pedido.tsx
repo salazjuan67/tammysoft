@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, RANGOS_HORARIO } from "@/lib/utils";
+import { formatCurrency, formatDate, RANGOS_HORARIO, getRangoLabel } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Search, X, Minus, Plus } from "lucide-react";
+import { Search, X, Minus, Plus, Eye, Copy } from "lucide-react";
 import type { Cliente, Categoria, Producto } from "@/types";
 
 interface CategoriaConProductos extends Categoria {
@@ -23,6 +23,20 @@ interface ItemPedido {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+}
+
+interface PedidoHistorico {
+  id: string;
+  fechaEntrega: string;
+  rangoHorario: string;
+  estado: string;
+  notas: string | null;
+  montoTotal: number;
+  items: Array<{
+    productoId: string;
+    cantidad: number;
+    producto: { id: string; nombre: string; activo?: boolean; precio: number; categoriaId: string; categoria: { nombre: string } };
+  }>;
 }
 
 interface FormularioPedidoProps {
@@ -53,6 +67,11 @@ export function FormularioPedido({
   const [categoriaActiva, setCategoriaActiva] = useState<string>("todas");
   const [loading, setLoading] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
+  const [historial, setHistorial] = useState<PedidoHistorico[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [busquedaHistorial, setBusquedaHistorial] = useState("");
+  const [previewPedido, setPreviewPedido] = useState<PedidoHistorico | null>(null);
 
   // Cargar pedido existente o copia
   useEffect(() => {
@@ -151,6 +170,66 @@ export function FormularioPedido({
   const montoTotal = items.reduce((acc, i) => acc + i.subtotal, 0);
   const cantidadTotal = items.reduce((acc, i) => acc + i.cantidad, 0);
 
+  async function abrirHistorial() {
+    if (!clienteId) {
+      toast({ title: "Seleccioná un cliente primero", variant: "destructive" });
+      return;
+    }
+    setShowHistorial(true);
+    setPreviewPedido(null);
+    setBusquedaHistorial("");
+    setCargandoHistorial(true);
+    try {
+      const res = await fetch(`/api/pedidos?clienteId=${clienteId}&pageSize=80&includeItems=true`);
+      const json = await res.json();
+      const data = ((json.data ?? []) as PedidoHistorico[]).filter((p) => p.estado !== "CANCELADO" && p.id !== pedidoId);
+      setHistorial(data);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  }
+
+  function confirmarRepetir(pedido: PedidoHistorico) {
+    const catalogo = categorias.flatMap((c) => c.productos.map((p) => ({ ...p, categoriaNombre: c.nombre, categoriaId: c.id })));
+    const omitidos: string[] = [];
+    const nuevos: ItemPedido[] = [];
+    for (const item of pedido.items) {
+      const prod = catalogo.find((p) => p.id === item.productoId);
+      if (!prod || prod.activo === false) {
+        omitidos.push(item.producto.nombre);
+        continue;
+      }
+      const precio = Number(prod.precio);
+      nuevos.push({
+        productoId: prod.id,
+        nombre: prod.nombre,
+        categoriaId: prod.categoriaId,
+        categoriaNombre: prod.categoriaNombre,
+        cantidad: item.cantidad,
+        precioUnitario: precio,
+        subtotal: precio * item.cantidad,
+      });
+    }
+    setItems(nuevos);
+    if (pedido.notas) setNotas(pedido.notas);
+    if (pedido.rangoHorario) setRangoHorario(pedido.rangoHorario);
+    setShowHistorial(false);
+    setPreviewPedido(null);
+    if (omitidos.length) {
+      toast({ title: "Pedido copiado con avisos", description: `No se cargaron: ${omitidos.join(", ")}`, variant: "destructive" });
+    } else {
+      toast({ title: "Pedido cargado. Revisá fecha y productos." });
+    }
+  }
+
+  const historialFiltrado = historial.filter((p) => {
+    const q = busquedaHistorial.toLowerCase().trim();
+    if (!q) return true;
+    const fecha = formatDate(p.fechaEntrega);
+    const productos = p.items.map((i) => i.producto.nombre).join(" ");
+    return `${p.notas ?? ""} ${fecha} ${productos}`.toLowerCase().includes(q);
+  });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!clienteId) { toast({ title: "Seleccioná un cliente", variant: "destructive" }); return; }
@@ -195,38 +274,46 @@ export function FormularioPedido({
   if (cargando) return <div className="py-8 text-center text-gray-500">Cargando pedido...</div>;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Datos del pedido */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
         {userRol !== "CLIENTE" && (
-          <div className="space-y-2">
-            <Label>Cliente *</Label>
-            <Select value={clienteId} onValueChange={setClienteId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar cliente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {clientes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-1">
+            <Label className="text-xs">Cliente *</Label>
+            <div className="flex gap-2">
+              <Select value={clienteId || undefined} onValueChange={(v) => { setClienteId(v); setShowHistorial(false); setPreviewPedido(null); }}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Seleccionar cliente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!pedidoId && (
+                <Button type="button" variant="outline" className="h-9 shrink-0" onClick={abrirHistorial} disabled={!clienteId}>
+                  <Copy className="h-4 w-4" />
+                  Repetir
+                </Button>
+              )}
+            </div>
           </div>
         )}
-        <div className="space-y-2">
-          <Label>Fecha de entrega *</Label>
+        <div className="space-y-1">
+          <Label className="text-xs">Fecha de entrega *</Label>
           <Input
             type="date"
+            className="h-9"
             value={fechaEntrega}
             onChange={(e) => setFechaEntrega(e.target.value)}
             min={new Date().toISOString().split("T")[0]}
             required
           />
         </div>
-        <div className="space-y-2">
-          <Label>Rango horario de retiro</Label>
+        <div className="space-y-1">
+          <Label className="text-xs">Rango horario</Label>
           <Select value={rangoHorario} onValueChange={setRangoHorario}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -236,151 +323,196 @@ export function FormularioPedido({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label>Notas (opcional)</Label>
+        <div className="space-y-1 col-span-2 lg:col-span-1">
+          <Label className="text-xs">Notas / cliente final</Label>
           <Input
-            placeholder="Indicaciones especiales..."
+            className="h-9"
+            placeholder="Nombre del cliente final..."
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Buscador de productos */}
-      <div className="space-y-3">
-        <Label>Productos</Label>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${showHistorial ? "" : "lg:grid-cols-[1fr_320px]"}`}>
+        {showHistorial ? (
+          <div className="flex min-h-0 flex-col gap-2 rounded-lg border border-pink-200 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-gray-800">Historial de pedidos</h4>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setShowHistorial(false); setPreviewPedido(null); }}>Cerrar</Button>
+            </div>
+            <div className="relative shrink-0">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                className="h-9 pl-9"
+                placeholder="Buscar por fecha, notas o producto..."
+                value={busquedaHistorial}
+                onChange={(e) => setBusquedaHistorial(e.target.value)}
+              />
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
+              <div className="min-h-0 overflow-y-auto rounded-lg border border-gray-100">
+                {cargandoHistorial ? (
+                  <p className="py-8 text-center text-sm text-gray-400">Cargando historial...</p>
+                ) : historialFiltrado.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-gray-400">No hay pedidos anteriores</p>
+                ) : (
+                  historialFiltrado.map((p) => {
+                    const unidades = p.items.reduce((s, i) => s + i.cantidad, 0);
+                    return (
+                      <div key={p.id} className={`flex items-center gap-2 border-b border-gray-50 px-3 py-2 ${previewPedido?.id === p.id ? "bg-pink-50" : "hover:bg-gray-50"}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900">{formatDate(p.fechaEntrega)} · {unidades} postres</p>
+                          <p className="truncate text-xs text-gray-500">
+                            {p.notas ? `📝 ${p.notas}` : getRangoLabel(p.rangoHorario)} · {formatCurrency(Number(p.montoTotal))}
+                          </p>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Previsualizar" onClick={() => setPreviewPedido(p)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="flex min-h-0 flex-col rounded-lg border border-gray-100 bg-gray-50 p-3">
+                {!previewPedido ? (
+                  <p className="m-auto text-center text-sm text-gray-400">Tocá el ojito para previsualizar un pedido</p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-sm font-semibold text-gray-800">
+                      Preview · {formatDate(previewPedido.fechaEntrega)}
+                      {previewPedido.notas ? ` · ${previewPedido.notas}` : ""}
+                    </p>
+                    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto text-sm">
+                      {previewPedido.items.map((item) => (
+                        <div key={item.productoId} className="flex justify-between gap-2">
+                          <span className="truncate text-gray-700">{item.cantidad}× {item.producto.nombre}</span>
+                          <span className="shrink-0 text-xs text-gray-400">{item.producto.categoria?.nombre}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 shrink-0 border-t border-gray-200 pt-2">
+                      <p className="mb-2 text-xs text-gray-500">Se cargará con los precios actuales. Confirmá para copiarlo al formulario.</p>
+                      <Button type="button" className="w-full" onClick={() => confirmarRepetir(previewPedido)}>
+                        Confirmar y usar este pedido
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+        <div className="flex min-h-0 flex-col gap-2">
+          <div className="relative shrink-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               placeholder="Buscar postre..."
-              className="pl-9"
+              className="h-9 pl-9"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Tabs categorías */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setCategoriaActiva("todas")}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${categoriaActiva === "todas" ? "bg-pink-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-          >
-            Todas
-          </button>
-          {categorias.map((c) => (
+          <div className="flex shrink-0 flex-wrap gap-1.5">
             <button
-              key={c.id}
               type="button"
-              onClick={() => setCategoriaActiva(c.id)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${categoriaActiva === c.id ? "bg-pink-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              onClick={() => setCategoriaActiva("todas")}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${categoriaActiva === "todas" ? "bg-pink-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
             >
-              {c.nombre}
+              Todas
             </button>
-          ))}
-        </div>
-
-        {/* Lista de productos */}
-        <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
-          {productosFiltrados.length === 0 ? (
-            <p className="text-center text-gray-500 py-8 text-sm">No se encontraron productos</p>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {productosFiltrados.map((prod) => {
-                const cantidad = getCantidad(prod.id);
-                return (
-                  <div
-                    key={prod.id}
-                    className={`flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors ${cantidad > 0 ? "bg-pink-50" : ""}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{prod.nombre}</p>
-                      <p className="text-xs text-gray-500">{formatCurrency(Number(prod.precio))}</p>
+            {categorias.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategoriaActiva(c.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${categoriaActiva === c.id ? "bg-pink-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              >
+                {c.nombre}
+              </button>
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200">
+            {productosFiltrados.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">No se encontraron productos</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {productosFiltrados.map((prod) => {
+                  const cantidad = getCantidad(prod.id);
+                  return (
+                    <div
+                      key={prod.id}
+                      className={`flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-gray-50 ${cantidad > 0 ? "bg-pink-50" : ""}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">{prod.nombre}</p>
+                        <p className="text-xs text-gray-500">{formatCurrency(Number(prod.precio))}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setCantidad(prod.id, cantidad - 1)} disabled={cantidad === 0}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 w-12 text-center text-sm"
+                          value={cantidad || ""}
+                          placeholder="0"
+                          onChange={(e) => setCantidad(prod.id, parseInt(e.target.value) || 0)}
+                        />
+                        <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setCantidad(prod.id, cantidad + 1)}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-24 truncate text-right text-xs text-gray-400">{prod.categoriaNombre}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setCantidad(prod.id, cantidad - 1)}
-                        disabled={cantidad === 0}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <Input
-                        type="number"
-                        min="0"
-                        className="w-14 h-7 text-center text-sm"
-                        value={cantidad || ""}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setCantidad(prod.id, val);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setCantidad(prod.id, cantidad + 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <span className="text-xs text-gray-400 w-24 text-right truncate">{prod.categoriaNombre}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+        )}
 
-      {/* Resumen del pedido */}
-      {items.length > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-          <h4 className="font-medium text-sm text-gray-700">Resumen del pedido</h4>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {items.map((item) => (
-              <div key={item.productoId} className="flex items-center justify-between text-sm gap-2">
-                <span className="text-gray-600 flex-1 truncate">{item.nombre}</span>
-                <span className="text-xs text-gray-400 flex-shrink-0">{item.categoriaNombre}</span>
-                <div className="flex items-center gap-3 ml-2">
+        {!showHistorial && (
+        <div className="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <h4 className="mb-2 shrink-0 text-sm font-medium text-gray-700">Resumen</h4>
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {items.length === 0 ? (
+              <p className="py-6 text-center text-xs text-gray-400">Todavía no hay productos</p>
+            ) : (
+              items.map((item) => (
+                <div key={item.productoId} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-gray-600">{item.nombre}</span>
+                  <span className="shrink-0 text-xs text-gray-400">{item.categoriaNombre}</span>
                   <Badge variant="secondary" className="text-xs">{item.cantidad}</Badge>
-                  <span className="font-medium w-24 text-right">{formatCurrency(item.subtotal)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCantidad(item.productoId, 0)}
-                    className="text-gray-400 hover:text-red-500"
-                  >
+                  <span className="w-16 shrink-0 text-right text-xs font-medium">{formatCurrency(item.subtotal)}</span>
+                  <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-          <div className="pt-2 border-t border-gray-200 space-y-1">
+          <div className="mt-2 shrink-0 space-y-2 border-t border-gray-200 pt-2">
             <div className="flex justify-between text-sm font-semibold text-gray-800">
               <span>Total productos</span>
               <span>{cantidadTotal} unidades</span>
             </div>
             <div className="flex justify-between font-bold">
               <span>Total</span>
-              <span className="text-pink-600 text-lg">{formatCurrency(montoTotal)}</span>
+              <span className="text-lg text-pink-600">{formatCurrency(montoTotal)}</span>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? "Guardando..." : pedidoId ? "Actualizar" : "Crear pedido"}
+              </Button>
             </div>
           </div>
         </div>
-      )}
-
-      <div className="flex gap-3 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? "Guardando..." : pedidoId ? "Actualizar pedido" : "Crear pedido"}
-        </Button>
+        )}
       </div>
     </form>
   );
