@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, formatDate, RANGOS_HORARIO, getRangoLabel } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Search, X, Minus, Plus, Eye, Copy } from "lucide-react";
+import { Search, X, Minus, Plus, Eye, Copy, ChevronsLeft, ChevronsRight } from "lucide-react";
 import type { Cliente, Categoria, Producto } from "@/types";
 
 interface CategoriaConProductos extends Categoria {
@@ -71,6 +71,41 @@ export function FormularioPedido({
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [previewPedido, setPreviewPedido] = useState<PedidoHistorico | null>(null);
+  const [resumenAncho, setResumenAncho] = useState(420);
+  const resumenAnchoRef = useRef(420);
+
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("tammy.pedido.resumenAncho"));
+    if (saved >= 280 && saved <= 780) {
+      setResumenAncho(saved);
+      resumenAnchoRef.current = saved;
+    }
+  }, []);
+
+  function ajustarResumen(delta: number) {
+    const next = Math.min(780, Math.max(280, resumenAncho + delta));
+    setResumenAncho(next);
+    resumenAnchoRef.current = next;
+    localStorage.setItem("tammy.pedido.resumenAncho", String(next));
+  }
+
+  function iniciarResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = resumenAncho;
+    function onMove(ev: MouseEvent) {
+      const next = Math.min(780, Math.max(280, startW + (startX - ev.clientX)));
+      setResumenAncho(next);
+      resumenAnchoRef.current = next;
+    }
+    function onUp() {
+      localStorage.setItem("tammy.pedido.resumenAncho", String(resumenAnchoRef.current));
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   // Cargar pedido existente o copia
   useEffect(() => {
@@ -334,7 +369,10 @@ export function FormularioPedido({
         )}
       </div>
 
-      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${showHistorial ? "" : "lg:grid-cols-[1fr_320px]"}`}>
+      <div
+        className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${showHistorial ? "" : "lg:[grid-template-columns:minmax(0,1fr)_var(--resumen-ancho)]"}`}
+        style={{ ["--resumen-ancho" as string]: `${resumenAncho}px` }}
+      >
         {showHistorial ? (
           <div className="flex min-h-0 flex-col gap-2 rounded-lg border border-pink-200 bg-white p-3">
             <div className="flex items-center justify-between gap-2">
@@ -478,35 +516,56 @@ export function FormularioPedido({
         )}
 
         {!showHistorial && (
-        <div className="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <h4 className="mb-2 shrink-0 text-sm font-medium text-gray-700">Resumen</h4>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+        <div className="relative flex min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <button
+            type="button"
+            onMouseDown={iniciarResize}
+            className="absolute -left-1.5 top-0 hidden h-full w-3 cursor-col-resize lg:block"
+            aria-label="Arrastrar para cambiar el ancho del resumen"
+            title="Arrastrar para agrandar o achicar"
+          >
+            <span className="mx-auto mt-8 block h-10 w-1 rounded-full bg-gray-300" />
+          </button>
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+            <h4 className="text-sm font-medium text-gray-700">Resumen</h4>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Achicar" onClick={() => ajustarResumen(-80)} disabled={resumenAncho <= 280}>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Agrandar" onClick={() => ajustarResumen(80)} disabled={resumenAncho >= 780}>
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {items.length === 0 ? (
               <p className="py-6 text-center text-xs text-gray-400">Todavía no hay productos</p>
             ) : (
               items.map((item) => (
-                <div key={item.productoId} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="max-w-[80px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
-                  <span className="min-w-0 flex-1 truncate text-gray-600">{item.nombre}</span>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad - 1)}>
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <Input
-                      type="number"
-                      min="0"
-                      className="h-6 w-10 px-1 text-center text-xs"
-                      value={item.cantidad}
-                      onChange={(e) => setCantidad(item.productoId, parseInt(e.target.value) || 0)}
-                    />
-                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad + 1)}>
-                      <Plus className="h-3 w-3" />
-                    </Button>
+                <div key={item.productoId} className="flex items-start justify-between gap-2 text-sm">
+                  <span className="mt-0.5 max-w-[80px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words leading-snug text-gray-800">{item.nombre}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad - 1)}>
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <Input
+                        type="number"
+                        min="0"
+                        className="h-6 w-10 px-1 text-center text-xs"
+                        value={item.cantidad}
+                        onChange={(e) => setCantidad(item.productoId, parseInt(e.target.value) || 0)}
+                      />
+                      <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad + 1)}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <span className="ml-auto text-xs font-medium">{formatCurrency(item.subtotal)}</span>
+                      <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                  <span className="w-16 shrink-0 text-right text-xs font-medium">{formatCurrency(item.subtotal)}</span>
-                  <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
-                    <X className="h-3 w-3" />
-                  </button>
                 </div>
               ))
             )}
