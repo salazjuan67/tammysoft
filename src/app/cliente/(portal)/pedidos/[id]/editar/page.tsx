@@ -157,9 +157,9 @@ export default function EditarPedidoPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
         {/* Left: products + date */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="space-y-5">
           {/* Products */}
           <div className="bg-white rounded-2xl border border-pink-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-900 mb-4">Productos</h2>
@@ -216,7 +216,7 @@ export default function EditarPedidoPage() {
 
         {/* Right: Resumen */}
         <div>
-          <ResumenPedido items={carrito} fechaEntrega={fechaEntrega} rangoHorario={rangoHorario} />
+          <ResumenPedido items={carrito} fechaEntrega={fechaEntrega} rangoHorario={rangoHorario} onCambio={setCarrito} />
         </div>
       </div>
     </div>

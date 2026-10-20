@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         : {}),
     },
     include: {
-      items: { include: { producto: { select: { nombre: true } } } },
+      items: { include: { producto: { select: { nombre: true, activo: true, categoria: { select: { nombre: true } } } } } },
       factura: { select: { id: true, estado: true, montoTotal: true } },
     },
     orderBy: { createdAt: "desc" },

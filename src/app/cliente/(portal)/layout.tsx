@@ -14,7 +14,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen bg-pink-50">
       <ClienteNav session={session} />
-      <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
     </div>
   );
 }
