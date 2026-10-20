@@ -290,6 +290,15 @@ export function FormularioPedido({
             </Select>
           </div>
         )}
+        <div className="space-y-1 col-span-2 lg:col-span-1">
+          <Label className="text-xs">Notas / cliente final</Label>
+          <Input
+            className="h-9"
+            placeholder="Nombre del cliente final..."
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+          />
+        </div>
         <div className="space-y-1">
           <Label className="text-xs">Fecha de entrega *</Label>
           <Input
@@ -313,15 +322,6 @@ export function FormularioPedido({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1 col-span-2 lg:col-span-1">
-          <Label className="text-xs">Notas / cliente final</Label>
-          <Input
-            className="h-9"
-            placeholder="Nombre del cliente final..."
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-          />
         </div>
         {!pedidoId && userRol !== "CLIENTE" && (
           <div className="space-y-1">
