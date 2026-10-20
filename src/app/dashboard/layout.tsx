@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/navigation/sidebar";
+import AyudaPantalla from "@/components/tutoriales/AyudaPantalla";
 import type { Rol } from "@/types";
 
 export default async function DashboardLayout({
@@ -20,6 +21,7 @@ export default async function DashboardLayout({
         <div className="p-6 md:p-8">
           {children}
         </div>
+        <AyudaPantalla audiencia="staff" />
       </main>
     </div>
   );

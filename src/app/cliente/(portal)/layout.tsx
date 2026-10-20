@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import ClienteNav from "./ClienteNav";
+import AyudaPantalla from "@/components/tutoriales/AyudaPantalla";
 
 export const metadata: Metadata = {
   title: "Portal de Clientes — Postres Tammy Light",
@@ -15,6 +16,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     <div className="min-h-screen bg-pink-50">
       <ClienteNav session={session} />
       <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
+      <AyudaPantalla audiencia="cliente" />
     </div>
   );
 }
