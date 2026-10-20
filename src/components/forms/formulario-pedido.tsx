@@ -71,22 +71,27 @@ export function FormularioPedido({
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [previewPedido, setPreviewPedido] = useState<PedidoHistorico | null>(null);
-  const [resumenAncho, setResumenAncho] = useState(420);
-  const resumenAnchoRef = useRef(420);
+  const [resumenAncho, setResumenAncho] = useState(640);
+  const resumenAnchoRef = useRef(640);
+  const RESUMEN_MIN = 520;
+  const RESUMEN_MAX = 1200;
 
   useEffect(() => {
     const saved = Number(localStorage.getItem("tammy.pedido.resumenAncho"));
-    if (saved >= 280 && saved <= 780) {
-      setResumenAncho(saved);
-      resumenAnchoRef.current = saved;
-    }
-  }, []);
-
-  function ajustarResumen(delta: number) {
-    const next = Math.min(780, Math.max(280, resumenAncho + delta));
+    const next = saved >= RESUMEN_MIN && saved <= RESUMEN_MAX ? saved : 640;
     setResumenAncho(next);
     resumenAnchoRef.current = next;
-    localStorage.setItem("tammy.pedido.resumenAncho", String(next));
+  }, []);
+
+  function guardarAncho(next: number) {
+    const clamped = Math.min(RESUMEN_MAX, Math.max(RESUMEN_MIN, next));
+    setResumenAncho(clamped);
+    resumenAnchoRef.current = clamped;
+    localStorage.setItem("tammy.pedido.resumenAncho", String(clamped));
+  }
+
+  function ajustarResumen(delta: number) {
+    guardarAncho(resumenAncho + delta);
   }
 
   function iniciarResize(e: React.MouseEvent) {
@@ -94,7 +99,7 @@ export function FormularioPedido({
     const startX = e.clientX;
     const startW = resumenAncho;
     function onMove(ev: MouseEvent) {
-      const next = Math.min(780, Math.max(280, startW + (startX - ev.clientX)));
+      const next = Math.min(RESUMEN_MAX, Math.max(RESUMEN_MIN, startW + (startX - ev.clientX)));
       setResumenAncho(next);
       resumenAnchoRef.current = next;
     }
@@ -257,6 +262,16 @@ export function FormularioPedido({
     }
   }
 
+  function setPreviewCantidad(productoId: string, cantidad: number) {
+    setPreviewPedido((prev) => {
+      if (!prev) return prev;
+      const items = cantidad <= 0
+        ? prev.items.filter((i) => i.productoId !== productoId)
+        : prev.items.map((i) => i.productoId === productoId ? { ...i, cantidad } : i);
+      return { ...prev, items };
+    });
+  }
+
   const historialFiltrado = historial.filter((p) => {
     const q = busquedaHistorial.toLowerCase().trim();
     if (!q) return true;
@@ -371,7 +386,7 @@ export function FormularioPedido({
       </div>
 
       <div
-        className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${showHistorial ? "" : "lg:[grid-template-columns:minmax(0,1fr)_var(--resumen-ancho)]"}`}
+        className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:[grid-template-columns:minmax(0,1fr)_var(--resumen-ancho)]"
         style={{ ["--resumen-ancho" as string]: `${resumenAncho}px` }}
       >
         {showHistorial ? (
@@ -389,63 +404,29 @@ export function FormularioPedido({
                 onChange={(e) => setBusquedaHistorial(e.target.value)}
               />
             </div>
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
-              <div className="min-h-0 overflow-y-auto rounded-lg border border-gray-100">
-                {cargandoHistorial ? (
-                  <p className="py-8 text-center text-sm text-gray-400">Cargando historial...</p>
-                ) : historialFiltrado.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-400">No hay pedidos anteriores</p>
-                ) : (
-                  historialFiltrado.map((p) => {
-                    const unidades = p.items.reduce((s, i) => s + i.cantidad, 0);
-                    return (
-                      <div key={p.id} className={`flex items-center gap-2 border-b border-gray-50 px-3 py-2 ${previewPedido?.id === p.id ? "bg-pink-50" : "hover:bg-gray-50"}`}>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900">{formatDate(p.fechaEntrega)} · {unidades} postres</p>
-                          <p className="truncate text-xs text-gray-500">
-                            {p.notas ? `📝 ${p.notas}` : getRangoLabel(p.rangoHorario)} · {formatCurrency(Number(p.montoTotal))}
-                          </p>
-                        </div>
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Previsualizar" onClick={() => setPreviewPedido(p)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-100">
+              {cargandoHistorial ? (
+                <p className="py-8 text-center text-sm text-gray-400">Cargando historial...</p>
+              ) : historialFiltrado.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">No hay pedidos anteriores</p>
+              ) : (
+                historialFiltrado.map((p) => {
+                  const unidades = p.items.reduce((s, i) => s + i.cantidad, 0);
+                  return (
+                    <div key={p.id} className={`flex items-center gap-2 border-b border-gray-50 px-3 py-2 ${previewPedido?.id === p.id ? "bg-pink-50" : "hover:bg-gray-50"}`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">{formatDate(p.fechaEntrega)} · {unidades} postres</p>
+                        <p className="truncate text-xs text-gray-500">
+                          {p.notas ? `📝 ${p.notas}` : getRangoLabel(p.rangoHorario)} · {formatCurrency(Number(p.montoTotal))}
+                        </p>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-              <div className="flex min-h-0 flex-col rounded-lg border border-gray-100 bg-gray-50 p-3">
-                {!previewPedido ? (
-                  <p className="m-auto text-center text-sm text-gray-400">Tocá el ojito para previsualizar un pedido</p>
-                ) : (
-                  <>
-                    <p className="mb-2 text-sm font-semibold text-gray-800">
-                      Preview · {formatDate(previewPedido.fechaEntrega)}
-                      {previewPedido.notas ? ` · ${previewPedido.notas}` : ""}
-                    </p>
-                    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto text-sm">
-                      {previewPedido.items.map((item) => (
-                        <div key={item.productoId} className="flex items-center gap-2">
-                          <span className="w-24 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">
-                            {item.producto.categoria?.nombre ?? "Sin categoría"}
-                          </span>
-                          <span className="min-w-0 flex-1 break-words text-gray-800">{item.producto.nombre}</span>
-                          <span className="w-8 shrink-0 text-right font-semibold text-gray-900">{item.cantidad}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-2 shrink-0 border-t border-gray-200 pt-2">
-                      <p className="mb-2 text-sm font-semibold text-gray-800">
-                        Total postres: {previewPedido.items.reduce((s, i) => s + i.cantidad, 0)}
-                      </p>
-                      <p className="mb-2 text-xs text-gray-500">Se cargará con los precios actuales. Confirmá para copiarlo al formulario.</p>
-                      <Button type="button" className="w-full" onClick={() => confirmarRepetir(previewPedido)}>
-                        Confirmar y usar este pedido
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Previsualizar" onClick={() => setPreviewPedido(p)}>
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </div>
-                  </>
-                )}
-              </div>
+                  );
+                })
+              )}
             </div>
           </div>
         ) : (
@@ -522,7 +503,6 @@ export function FormularioPedido({
         </div>
         )}
 
-        {!showHistorial && (
         <div className="relative flex min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
           <button
             type="button"
@@ -534,67 +514,116 @@ export function FormularioPedido({
             <span className="mx-auto mt-8 block h-10 w-1 rounded-full bg-gray-300" />
           </button>
           <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-            <h4 className="text-sm font-medium text-gray-700">Resumen</h4>
+            <h4 className="text-sm font-medium text-gray-700">
+              {showHistorial
+                ? previewPedido
+                  ? `Preview · ${formatDate(previewPedido.fechaEntrega)}${previewPedido.notas ? ` · ${previewPedido.notas}` : ""}`
+                  : "Preview"
+                : "Resumen"}
+            </h4>
             <div className="flex items-center gap-1">
-              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Achicar" onClick={() => ajustarResumen(-80)} disabled={resumenAncho <= 280}>
+              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Achicar" onClick={() => ajustarResumen(-80)} disabled={resumenAncho <= RESUMEN_MIN}>
                 <ChevronsRight className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Agrandar" onClick={() => ajustarResumen(80)} disabled={resumenAncho >= 780}>
+              <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Agrandar" onClick={() => ajustarResumen(80)} disabled={resumenAncho >= RESUMEN_MAX}>
                 <ChevronsLeft className="h-4 w-4" />
               </Button>
             </div>
           </div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-            {items.length === 0 ? (
-              <p className="py-6 text-center text-xs text-gray-400">Todavía no hay productos</p>
-            ) : (
-              items.map((item) => (
-                <div key={item.productoId} className="flex items-start justify-between gap-2 text-sm">
-                  <span className="mt-0.5 max-w-[80px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words leading-snug text-gray-800">{item.nombre}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1">
-                      <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad - 1)}>
+            {showHistorial ? (
+              !previewPedido ? (
+                <p className="py-6 text-center text-xs text-gray-400">Tocá el ojito para previsualizar un pedido</p>
+              ) : (
+                previewPedido.items.map((item) => (
+                  <div key={item.productoId} className="flex items-start gap-2 text-sm">
+                    <span className="mt-0.5 w-24 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">
+                      {item.producto.categoria?.nombre ?? "Sin categoría"}
+                    </span>
+                    <p className="min-w-0 flex-1 break-words leading-snug text-gray-800">{item.producto.nombre}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setPreviewCantidad(item.productoId, item.cantidad - 1)}>
                         <Minus className="h-3 w-3" />
                       </Button>
                       <Input
                         type="number"
                         min="0"
-                        className="h-6 w-10 px-1 text-center text-xs"
+                        className="h-7 w-12 px-1 text-center text-sm"
                         value={item.cantidad}
-                        onChange={(e) => setCantidad(item.productoId, parseInt(e.target.value) || 0)}
+                        onChange={(e) => setPreviewCantidad(item.productoId, parseInt(e.target.value) || 0)}
                       />
-                      <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={() => setCantidad(item.productoId, item.cantidad + 1)}>
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setPreviewCantidad(item.productoId, item.cantidad + 1)}>
                         <Plus className="h-3 w-3" />
                       </Button>
-                      <span className="ml-auto text-xs font-medium">{formatCurrency(item.subtotal)}</span>
-                      <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
+                      <button type="button" onClick={() => setPreviewCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                  </div>
+                ))
+              )
+            ) : items.length === 0 ? (
+              <p className="py-6 text-center text-xs text-gray-400">Todavía no hay productos</p>
+            ) : (
+              items.map((item) => (
+                <div key={item.productoId} className="flex items-start gap-2 text-sm">
+                  <span className="mt-0.5 w-24 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
+                  <p className="min-w-0 flex-1 break-words leading-snug text-gray-800">{item.nombre}</p>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setCantidad(item.productoId, item.cantidad - 1)}>
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min="0"
+                      className="h-7 w-12 px-1 text-center text-sm"
+                      value={item.cantidad}
+                      onChange={(e) => setCantidad(item.productoId, parseInt(e.target.value) || 0)}
+                    />
+                    <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setCantidad(item.productoId, item.cantidad + 1)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-16 text-right text-xs font-medium">{formatCurrency(item.subtotal)}</span>
+                    <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500" aria-label="Quitar">
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
               ))
             )}
           </div>
           <div className="mt-2 shrink-0 space-y-2 border-t border-gray-200 pt-2">
-            <div className="flex justify-between text-sm font-semibold text-gray-800">
-              <span>Total productos</span>
-              <span>{cantidadTotal} unidades</span>
-            </div>
-            <div className="flex justify-between font-bold">
-              <span>Total</span>
-              <span className="text-lg text-pink-600">{formatCurrency(montoTotal)}</span>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
-              <Button type="submit" className="flex-1" disabled={loading}>
-                {loading ? "Guardando..." : pedidoId ? "Actualizar" : "Crear pedido"}
-              </Button>
-            </div>
+            {showHistorial ? (
+              <>
+                <div className="flex justify-between text-sm font-semibold text-gray-800">
+                  <span>Total postres</span>
+                  <span>{previewPedido ? previewPedido.items.reduce((s, i) => s + i.cantidad, 0) : 0}</span>
+                </div>
+                <p className="text-xs text-gray-500">Se cargará con los precios actuales. Confirmá para copiarlo al formulario.</p>
+                <Button type="button" className="w-full" disabled={!previewPedido || previewPedido.items.length === 0} onClick={() => previewPedido && confirmarRepetir(previewPedido)}>
+                  Confirmar y usar este pedido
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-sm font-semibold text-gray-800">
+                  <span>Total productos</span>
+                  <span>{cantidadTotal} unidades</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span>Total</span>
+                  <span className="text-lg text-pink-600">{formatCurrency(montoTotal)}</span>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? "Guardando..." : pedidoId ? "Actualizar" : "Crear pedido"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
-        )}
       </div>
     </form>
   );
