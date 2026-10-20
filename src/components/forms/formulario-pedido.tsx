@@ -424,13 +424,19 @@ export function FormularioPedido({
                     </p>
                     <div className="min-h-0 flex-1 space-y-1 overflow-y-auto text-sm">
                       {previewPedido.items.map((item) => (
-                        <div key={item.productoId} className="flex justify-between gap-2">
-                          <span className="truncate text-gray-700">{item.cantidad}× {item.producto.nombre}</span>
-                          <span className="shrink-0 text-xs text-gray-400">{item.producto.categoria?.nombre}</span>
+                        <div key={item.productoId} className="flex items-center gap-2">
+                          <span className="w-24 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">
+                            {item.producto.categoria?.nombre ?? "Sin categoría"}
+                          </span>
+                          <span className="min-w-0 flex-1 break-words text-gray-800">{item.producto.nombre}</span>
+                          <span className="w-8 shrink-0 text-right font-semibold text-gray-900">{item.cantidad}</span>
                         </div>
                       ))}
                     </div>
                     <div className="mt-2 shrink-0 border-t border-gray-200 pt-2">
+                      <p className="mb-2 text-sm font-semibold text-gray-800">
+                        Total postres: {previewPedido.items.reduce((s, i) => s + i.cantidad, 0)}
+                      </p>
                       <p className="mb-2 text-xs text-gray-500">Se cargará con los precios actuales. Confirmá para copiarlo al formulario.</p>
                       <Button type="button" className="w-full" onClick={() => confirmarRepetir(previewPedido)}>
                         Confirmar y usar este pedido
