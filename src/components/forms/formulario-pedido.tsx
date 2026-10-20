@@ -275,28 +275,20 @@ export function FormularioPedido({
 
   return (
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
         {userRol !== "CLIENTE" && (
           <div className="space-y-1">
             <Label className="text-xs">Cliente *</Label>
-            <div className="flex gap-2">
-              <Select value={clienteId || undefined} onValueChange={(v) => { setClienteId(v); setShowHistorial(false); setPreviewPedido(null); }}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Seleccionar cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!pedidoId && (
-                <Button type="button" variant="outline" className="h-9 shrink-0" onClick={abrirHistorial} disabled={!clienteId}>
-                  <Copy className="h-4 w-4" />
-                  Repetir
-                </Button>
-              )}
-            </div>
+            <Select value={clienteId || undefined} onValueChange={(v) => { setClienteId(v); setShowHistorial(false); setPreviewPedido(null); }}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Seleccionar cliente..." />
+              </SelectTrigger>
+              <SelectContent>
+                {clientes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <div className="space-y-1">
@@ -332,6 +324,15 @@ export function FormularioPedido({
             onChange={(e) => setNotas(e.target.value)}
           />
         </div>
+        {!pedidoId && userRol !== "CLIENTE" && (
+          <div className="space-y-1">
+            <Label className="text-xs invisible">Repetir</Label>
+            <Button type="button" variant="outline" className="h-9 w-full" onClick={abrirHistorial} disabled={!clienteId}>
+              <Copy className="h-4 w-4" />
+              Repetir
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className={`grid min-h-0 flex-1 grid-cols-1 gap-3 ${showHistorial ? "" : "lg:grid-cols-[1fr_320px]"}`}>
@@ -445,6 +446,9 @@ export function FormularioPedido({
                       key={prod.id}
                       className={`flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-gray-50 ${cantidad > 0 ? "bg-pink-50" : ""}`}
                     >
+                      <span className="w-28 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-xs font-semibold text-pink-800">
+                        {prod.categoriaNombre}
+                      </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900">{prod.nombre}</p>
                         <p className="text-xs text-gray-500">{formatCurrency(Number(prod.precio))}</p>
@@ -464,7 +468,6 @@ export function FormularioPedido({
                         <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setCantidad(prod.id, cantidad + 1)}>
                           <Plus className="h-3 w-3" />
                         </Button>
-                        <span className="w-24 truncate text-right text-xs text-gray-400">{prod.categoriaNombre}</span>
                       </div>
                     </div>
                   );
@@ -484,8 +487,8 @@ export function FormularioPedido({
             ) : (
               items.map((item) => (
                 <div key={item.productoId} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="max-w-[90px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoriaNombre}</span>
                   <span className="min-w-0 flex-1 truncate text-gray-600">{item.nombre}</span>
-                  <span className="shrink-0 text-xs text-gray-400">{item.categoriaNombre}</span>
                   <Badge variant="secondary" className="text-xs">{item.cantidad}</Badge>
                   <span className="w-16 shrink-0 text-right text-xs font-medium">{formatCurrency(item.subtotal)}</span>
                   <button type="button" onClick={() => setCantidad(item.productoId, 0)} className="text-gray-400 hover:text-red-500">

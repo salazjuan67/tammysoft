@@ -154,6 +154,11 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                           key={prod.id}
                           className={`flex items-center gap-3 px-4 py-3 transition-colors ${cantidad > 0 ? "bg-pink-50" : "bg-white hover:bg-gray-50"}`}
                         >
+                          {prod.categoria?.nombre && (
+                            <span className="w-24 shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-xs font-semibold text-pink-800">
+                              {prod.categoria.nombre}
+                            </span>
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{prod.nombre}</p>
                             {prod.descripcion && (
@@ -186,9 +191,6 @@ export default function SelectorProductos({ carrito, onCambio }: SelectorProduct
                               className="w-7 h-7 rounded-full border border-gray-200 text-gray-600 hover:border-pink-400 hover:text-pink-600 text-base leading-none flex items-center justify-center transition-colors"
                             >+</button>
                           </div>
-                          {prod.categoria?.nombre && (
-                            <span className="text-xs text-gray-400 w-24 text-right flex-shrink-0 truncate">{prod.categoria.nombre}</span>
-                          )}
                         </div>
                       );
                     })}

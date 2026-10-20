@@ -40,12 +40,12 @@ export default function ResumenPedido({
         <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-1">
           {items.map((item) => (
             <div key={item.productoId} className="flex justify-between text-sm gap-2">
+              {item.categoria && (
+                <span className="max-w-[90px] shrink-0 truncate rounded-full bg-pink-100 px-2 py-0.5 text-center text-[10px] font-semibold text-pink-800">{item.categoria}</span>
+              )}
               <span className="text-gray-700 truncate flex-1">
                 <span className="font-medium text-pink-600">{item.cantidad}×</span> {item.nombre}
               </span>
-              {item.categoria && (
-                <span className="text-xs text-gray-400 flex-shrink-0">{item.categoria}</span>
-              )}
               <span className="font-medium text-gray-900 flex-shrink-0">
                 {formatCurrency(item.precio * item.cantidad)}
               </span>
