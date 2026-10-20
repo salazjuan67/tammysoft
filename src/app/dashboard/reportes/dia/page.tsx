@@ -29,6 +29,9 @@ interface ClienteDia {
   postresEnProduccion: number;
   postresPendientes: number;
   montoTotal: number;
+  montoHechos: number;
+  montoEnProduccion: number;
+  montoPendientes: number;
 }
 interface ReporteDia {
   fecha: string;
@@ -40,6 +43,9 @@ interface ReporteDia {
     postresEnProduccion: number;
     postresPendientes: number;
     montoTotal: number;
+    montoHechos: number;
+    montoEnProduccion: number;
+    montoPendientes: number;
   };
   clientes: ClienteDia[];
   postresHechos: ItemAgg[];
@@ -68,6 +74,7 @@ function agruparPorCategoria(items: ItemAgg[]) {
 
 export default function ReporteDiaPage() {
   const [fecha, setFecha] = useState(hoy);
+  const [vista, setVista] = useState<"general" | "detalle">("general");
   const [data, setData] = useState<ReporteDia | null>(null);
   const [loading, setLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
@@ -96,19 +103,34 @@ export default function ReporteDiaPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reporte del día</h1>
-          <p className="text-sm text-gray-500">Pedidos por cliente, postres hechos y pendientes</p>
+          <p className="text-sm text-gray-500">Resumen general de cantidades e importes, o detalle por pedido</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => navFecha(-1)}><ChevronLeft className="h-4 w-4" /></Button>
           <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-40" />
           <Button variant="outline" size="icon" onClick={() => navFecha(1)}><ChevronRight className="h-4 w-4" /></Button>
-          <Button onClick={() => handlePrint()}><Printer className="h-4 w-4" /> Imprimir</Button>
+          <Button onClick={() => handlePrint()}><Printer className="h-4 w-4" /> Imprimir {vista === "general" ? "general" : "detalle"}</Button>
         </div>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit no-print">
+        <button
+          onClick={() => setVista("general")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${vista === "general" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+        >
+          General
+        </button>
+        <button
+          onClick={() => setVista("detalle")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${vista === "detalle" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+        >
+          Detallado
+        </button>
       </div>
 
       <div ref={printRef}>
         <div className="hidden print:block mb-4">
-          <h1 className="text-xl font-bold">Reporte del día — {formatDate(fecha)}</h1>
+          <h1 className="text-xl font-bold">Reporte {vista === "general" ? "general" : "detallado"} — {formatDate(fecha)}</h1>
           <p className="text-sm text-gray-600">Postres Tammy Light</p>
         </div>
 
@@ -122,40 +144,86 @@ export default function ReporteDiaPage() {
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <Card>
-                <CardContent className="pt-4">
-                  <p className="text-xs text-gray-500">Pedidos</p>
-                  <p className="text-2xl font-bold">{resumen!.pedidos}</p>
-                  <p className="text-xs text-gray-400">{resumen!.clientes} clientes</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <p className="text-xs text-gray-500">Postres del día</p>
-                  <p className="text-2xl font-bold text-pink-600">{resumen!.postresTotal}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-green-100 bg-green-50 print:bg-white">
-                <CardContent className="pt-4">
-                  <p className="text-xs text-green-700">Hechos</p>
-                  <p className="text-2xl font-bold text-green-700">{resumen!.postresHechos}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-blue-100 bg-blue-50 print:bg-white">
-                <CardContent className="pt-4">
-                  <p className="text-xs text-blue-700">En producción</p>
-                  <p className="text-2xl font-bold text-blue-700">{resumen!.postresEnProduccion}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-amber-100 bg-amber-50 print:bg-white">
-                <CardContent className="pt-4">
-                  <p className="text-xs text-amber-700">Pendientes</p>
-                  <p className="text-2xl font-bold text-amber-700">{resumen!.postresPendientes}</p>
-                </CardContent>
-              </Card>
-            </div>
+            {vista === "general" ? (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-xs text-gray-500">Pedidos</p>
+                      <p className="text-2xl font-bold">{resumen!.pedidos}</p>
+                      <p className="text-xs text-gray-400">{resumen!.clientes} clientes</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-xs text-gray-500">Postres</p>
+                      <p className="text-2xl font-bold text-pink-600">{resumen!.postresTotal}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-pink-100 bg-pink-50 print:bg-white">
+                    <CardContent className="pt-4">
+                      <p className="text-xs text-pink-700">Importe total</p>
+                      <p className="text-2xl font-bold text-pink-700">{formatCurrency(resumen!.montoTotal)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <p className="text-xs text-gray-500">Hechos / pendientes</p>
+                      <p className="text-lg font-bold text-green-700">{resumen!.postresHechos} <span className="text-sm font-medium">u. {formatCurrency(resumen!.montoHechos)}</span></p>
+                      <p className="text-lg font-bold text-amber-700">{resumen!.postresPendientes} <span className="text-sm font-medium">u. {formatCurrency(resumen!.montoPendientes)}</span></p>
+                    </CardContent>
+                  </Card>
+                </div>
 
+                <Card className="print:shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Totales por cliente</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-gray-600">
+                            <th className="text-left px-4 py-2 font-medium">Cliente</th>
+                            <th className="text-center px-4 py-2 font-medium">Pedidos</th>
+                            <th className="text-center px-4 py-2 font-medium">Postres</th>
+                            <th className="text-center px-4 py-2 font-medium">Hechos</th>
+                            <th className="text-center px-4 py-2 font-medium">En prod.</th>
+                            <th className="text-center px-4 py-2 font-medium">Pendientes</th>
+                            <th className="text-right px-4 py-2 font-medium">Importe</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.clientes.map((c) => (
+                            <tr key={c.clienteId} className="border-b border-gray-50">
+                              <td className="px-4 py-2 font-medium text-gray-900">{c.nombre}</td>
+                              <td className="px-4 py-2 text-center">{c.pedidos.length}</td>
+                              <td className="px-4 py-2 text-center font-semibold">{c.totalPostres}</td>
+                              <td className="px-4 py-2 text-center text-green-700">{c.postresHechos}</td>
+                              <td className="px-4 py-2 text-center text-blue-700">{c.postresEnProduccion}</td>
+                              <td className="px-4 py-2 text-center text-amber-700">{c.postresPendientes}</td>
+                              <td className="px-4 py-2 text-right font-semibold">{formatCurrency(c.montoTotal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-pink-50 font-bold">
+                            <td className="px-4 py-2">Total</td>
+                            <td className="px-4 py-2 text-center">{resumen!.pedidos}</td>
+                            <td className="px-4 py-2 text-center">{resumen!.postresTotal}</td>
+                            <td className="px-4 py-2 text-center text-green-700">{resumen!.postresHechos}</td>
+                            <td className="px-4 py-2 text-center text-blue-700">{resumen!.postresEnProduccion}</td>
+                            <td className="px-4 py-2 text-center text-amber-700">{resumen!.postresPendientes}</td>
+                            <td className="px-4 py-2 text-right text-pink-700">{formatCurrency(resumen!.montoTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <>
             <Card className="print:shadow-none">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Pedidos por cliente</CardTitle>
@@ -187,6 +255,7 @@ export default function ReporteDiaPage() {
                                 {ESTADO_LABEL[pedido.estado] ?? pedido.estado}
                               </Badge>
                               <span className="font-semibold">{pedido.totalPostres} postres</span>
+                              <span className="text-gray-600">{formatCurrency(pedido.montoTotal)}</span>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-1 text-xs">
@@ -209,6 +278,8 @@ export default function ReporteDiaPage() {
               <ListaPostres titulo="En producción" vacio="Nada en producción" items={data.postresEnProduccion} color="text-blue-700" />
               <ListaPostres titulo="Pendientes" vacio="Sin pendientes" items={data.postresPendientes} color="text-amber-700" />
             </div>
+              </>
+            )}
           </div>
         )}
       </div>

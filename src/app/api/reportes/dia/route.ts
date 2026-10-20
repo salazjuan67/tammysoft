@@ -80,12 +80,18 @@ export async function GET(req: NextRequest) {
     postresEnProduccion: number;
     postresPendientes: number;
     montoTotal: number;
+    montoHechos: number;
+    montoEnProduccion: number;
+    montoPendientes: number;
   }>();
 
   let postresHechos = 0;
   let postresEnProduccion = 0;
   let postresPendientes = 0;
   let montoTotal = 0;
+  let montoHechos = 0;
+  let montoEnProduccion = 0;
+  let montoPendientes = 0;
 
   for (const pedido of pedidos) {
     const totalPostres = pedido.items.reduce((s, i) => s + i.cantidad, 0);
@@ -94,12 +100,15 @@ export async function GET(req: NextRequest) {
 
     if (pedido.estado === "ENTREGADO") {
       postresHechos += totalPostres;
+      montoHechos += monto;
       sumarItems(hechosMap, pedido.items);
     } else if (pedido.estado === "EN_PRODUCCION") {
       postresEnProduccion += totalPostres;
+      montoEnProduccion += monto;
       sumarItems(enProdMap, pedido.items);
     } else {
       postresPendientes += totalPostres;
+      montoPendientes += monto;
       sumarItems(pendientesMap, pedido.items);
     }
 
@@ -129,14 +138,24 @@ export async function GET(req: NextRequest) {
         postresEnProduccion: pedido.estado === "EN_PRODUCCION" ? totalPostres : 0,
         postresPendientes: pedido.estado === "PENDIENTE" ? totalPostres : 0,
         montoTotal: monto,
+        montoHechos: pedido.estado === "ENTREGADO" ? monto : 0,
+        montoEnProduccion: pedido.estado === "EN_PRODUCCION" ? monto : 0,
+        montoPendientes: pedido.estado === "PENDIENTE" ? monto : 0,
       });
     } else {
       existente.pedidos.push(pedidoRow);
       existente.totalPostres += totalPostres;
       existente.montoTotal += monto;
-      if (pedido.estado === "ENTREGADO") existente.postresHechos += totalPostres;
-      else if (pedido.estado === "EN_PRODUCCION") existente.postresEnProduccion += totalPostres;
-      else existente.postresPendientes += totalPostres;
+      if (pedido.estado === "ENTREGADO") {
+        existente.postresHechos += totalPostres;
+        existente.montoHechos += monto;
+      } else if (pedido.estado === "EN_PRODUCCION") {
+        existente.postresEnProduccion += totalPostres;
+        existente.montoEnProduccion += monto;
+      } else {
+        existente.postresPendientes += totalPostres;
+        existente.montoPendientes += monto;
+      }
     }
   }
 
@@ -154,6 +173,9 @@ export async function GET(req: NextRequest) {
         postresEnProduccion,
         postresPendientes,
         montoTotal,
+        montoHechos,
+        montoEnProduccion,
+        montoPendientes,
       },
       clientes: [...clientesMap.values()],
       postresHechos: [...hechosMap.values()].sort(sortAgg),
