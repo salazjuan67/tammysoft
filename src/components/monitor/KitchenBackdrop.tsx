@@ -161,6 +161,19 @@ export function KitchenBackdrop({
           />
         </pattern>
         <pattern
+          id="tilePending"
+          width="48"
+          height="28"
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d="M24 0 L48 14 L24 28 L0 14 Z"
+            fill="#efe1c8"
+            stroke="#e2cfae"
+            strokeWidth="1"
+          />
+        </pattern>
+        <pattern
           id="tileProd"
           width="48"
           height="28"
@@ -220,7 +233,7 @@ export function KitchenBackdrop({
       <rect x="0" y={WALL_Y - 4} width={W} height="6" fill="#e8bfc0" />
 
       {/* Pisos por ambiente */}
-      <rect x="0" y={WALL_Y} width={a} height={H - WALL_Y} fill="url(#tile)" />
+      <rect x="0" y={WALL_Y} width={a} height={H - WALL_Y} fill="url(#tilePending)" />
       <rect
         x={a}
         y={WALL_Y}
