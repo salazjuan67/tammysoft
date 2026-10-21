@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, LayoutGrid, List as ListIcon, Snowflake, X, ChefHat, AlertTriangle, ChevronsRight } from "lucide-react";
 import { fechaKey } from "@/lib/monitor/time";
-import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
+import type { MonitorFilter, MonitorOrder, MonitorStatus } from "@/lib/monitor/types";
 import type { ZoneId } from "@/lib/monitor/layout";
 import { useMonitorDashboard } from "./useMonitorDashboard";
 import { MonitorHeader } from "./MonitorHeader";
@@ -18,14 +18,30 @@ import { LoadWidget, RangoWidget } from "./DayWidgets";
 import { StatusBadge } from "./ui";
 import "./monitor.css";
 
+/** Estados que entran en la vista ampliada de cada sección. */
+const FOCUS_STATUS: Record<ZoneId, MonitorStatus[]> = {
+  pending: ["pending"],
+  production: ["production"],
+  stored: ["stored", "ready_dispatch"],
+  ready_dispatch: ["ready_dispatch"],
+  delivered: ["delivered"],
+};
+const FOCUS_ZONES = Object.keys(FOCUS_STATUS) as ZoneId[];
+
+function isZone(v: string): v is ZoneId {
+  return (FOCUS_ZONES as string[]).includes(v);
+}
+
 export function MonitorApp() {
   const search = useSearchParams();
   const demo = search.get("demo") === "1" && process.env.NODE_ENV !== "production";
   const [fecha, setFecha] = useState(fechaKey());
   const [filter, setFilter] = useState<MonitorFilter>("all");
-  const [view, setView] = useState<"scene" | "list" | "production">("scene");
-  // En la vista Producción las alertas arrancan minimizadas; se abre sin tocar la preferencia guardada.
+  // "scene" = plano general; una ZoneId = esa sección ampliada a pantalla completa.
+  const [view, setView] = useState<"scene" | "list" | ZoneId>("scene");
+  // En las vistas ampliadas las alertas arrancan minimizadas; se abren sin tocar la preferencia guardada.
   const [prodAlerts, setProdAlerts] = useState(false);
+  const focus = isZone(view) ? view : null;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -95,7 +111,19 @@ export function MonitorApp() {
     setTv(true);
   }
 
-  const showPanel = view === "production" ? prodAlerts : !panelOff;
+  function openFocus(zone: ZoneId | null) {
+    setProdAlerts(false);
+    setFilter("all");
+    setView(zone ?? "scene");
+  }
+
+  // Las tarjetas de sección abren su vista ampliada (y la cierran si ya está abierta); Alertas sigue filtrando.
+  function onKpi(f: MonitorFilter) {
+    if (isZone(f)) openFocus(view === f ? null : f);
+    else setFilter(f);
+  }
+
+  const showPanel = focus ? prodAlerts : !panelOff;
 
   const sceneOrders = snapshot
     ? q
@@ -122,14 +150,15 @@ export function MonitorApp() {
         ) : (
           <KitchenScene
             key={view}
-            orders={view === "production" ? sceneOrders.filter((o) => o.status === "production") : sceneOrders}
-            filter={view === "production" ? "production" : filter}
+            orders={focus ? sceneOrders.filter((o) => FOCUS_STATUS[focus].includes(o.status)) : sceneOrders}
+            filter={focus ? "all" : filter}
             alertIds={alertIds}
             selectedId={selectedId}
             tv={tv}
             calm={calm}
             entering={diff.entered}
-            focusProduction={view === "production"}
+            focus={focus}
+            onFocus={openFocus}
             onSelect={locate}
             onOverflow={onOverflow}
           />
@@ -147,14 +176,14 @@ export function MonitorApp() {
         tv={tv}
         calm={calm}
         sidebarOff={sidebarOff || tv}
-        panelOff={view === "production" ? !prodAlerts : panelOff}
+        panelOff={focus ? !prodAlerts : panelOff}
         onTv={() => setTv((v) => !v)}
         onCalm={() => setCalm((v) => !v)}
         onSidebar={toggleSidebar}
-        onPanel={() => (view === "production" ? setProdAlerts((v) => !v) : togglePanel())}
+        onPanel={() => (focus ? setProdAlerts((v) => !v) : togglePanel())}
         onFullscreen={fullscreen}
       />
-      {snapshot && <MonitorKpiBar kpis={snapshot.kpis} filter={filter} onFilter={setFilter} />}
+      {snapshot && <MonitorKpiBar kpis={snapshot.kpis} filter={focus ?? filter} onFilter={onKpi} />}
       {error && conn !== "live" && (
         <p className="px-3 text-xs text-amber-800">
           {conn === "stale" ? "Mostrando último snapshot válido. " : ""}{error}
@@ -206,7 +235,7 @@ export function MonitorApp() {
 
             <div className="glass flex items-center rounded-xl p-1">
               <Seg active={view === "scene"} onClick={() => setView("scene")} icon={<LayoutGrid className="h-3.5 w-3.5" />}>Escena</Seg>
-              <Seg active={view === "production"} onClick={() => { setProdAlerts(false); setView("production"); }} icon={<ChefHat className="h-3.5 w-3.5" />}>Producción</Seg>
+              <Seg active={view === "production"} onClick={() => openFocus("production")} icon={<ChefHat className="h-3.5 w-3.5" />}>Producción</Seg>
               <Seg active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="h-3.5 w-3.5" />}>Lista</Seg>
             </div>
             <div className="glass flex items-center rounded-xl p-1">
@@ -224,7 +253,7 @@ export function MonitorApp() {
         {snapshot && !showPanel && (
           <button
             type="button"
-            onClick={() => (view === "production" ? setProdAlerts(true) : togglePanel())}
+            onClick={() => (focus ? setProdAlerts(true) : togglePanel())}
             className="glass absolute right-3 top-48 hidden items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-[#6f5750] hover:bg-rose-50 lg:flex"
           >
             <AlertTriangle className="h-3.5 w-3.5 text-[#d9453d]" />
@@ -240,7 +269,7 @@ export function MonitorApp() {
           <div className="absolute bottom-3 right-3 top-48 hidden w-[340px] flex-col gap-3 lg:flex">
             <button
               type="button"
-              onClick={() => (view === "production" ? setProdAlerts(false) : togglePanel())}
+              onClick={() => (focus ? setProdAlerts(false) : togglePanel())}
               className="glass flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-semibold text-[#6f5750] hover:bg-rose-50"
             >
               <ChevronsRight className="h-3.5 w-3.5" /> Minimizar alertas

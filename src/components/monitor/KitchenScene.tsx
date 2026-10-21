@@ -24,20 +24,46 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
 
 const ZONE_ORDER: ZoneId[] = ["pending", "production", "stored", "ready_dispatch", "delivered"];
 
-/** Encuadra la sala de producción (desde el cartel hasta el piso) para que llene la pantalla. */
-function productionCamera(layout: SceneLayout, fit: number) {
-  const [x0, x1] = layout.rooms.production;
-  const top = 170;
-  const bottom = layout.height - 20;
-  const zoom = Math.min(2.6, layout.width / (x1 - x0 + 40), layout.height / (bottom - top));
+/** Zoom de rueda a partir del cual el plano general salta a la vista de la sección bajo el cursor. */
+const FOCUS_ZOOM = 1.4;
+
+/** Rectángulo del mundo que encuadra cada sección en su vista ampliada. */
+function focusRect(layout: SceneLayout, focus: ZoneId) {
+  const { width: W, height: H, rooms, fridge, coldSplitX, coldFloorY } = layout;
+  switch (focus) {
+    case "pending":
+      return { x0: 0, x1: rooms.pending[1], y0: 170, y1: H - 20 };
+    case "production":
+      return { x0: rooms.production[0] - 20, x1: rooms.production[1] + 20, y0: 170, y1: H - 20 };
+    case "stored":
+      return { x0: fridge.xs[0] - 40, x1: fridge.xs[2] + fridge.w + 40, y0: 70, y1: fridge.y + fridge.h + 40 };
+    case "ready_dispatch":
+      return { x0: rooms.cold[0] + 10, x1: coldSplitX, y0: coldFloorY - 40, y1: H - 20 };
+    case "delivered":
+      return { x0: coldSplitX, x1: W - 10, y0: coldFloorY - 40, y1: H - 20 };
+  }
+}
+
+/** `contentBottom`: y más baja con cajas en la sección; el encuadre no baja mucho más para no mostrar piso vacío. */
+function focusCamera(layout: SceneLayout, focus: ZoneId, fit: number, contentBottom?: number) {
+  const r = focusRect(layout, focus);
+  if (contentBottom != null) r.y1 = Math.min(r.y1, Math.max(r.y0 + 520, contentBottom + 230));
+  const zoom = Math.min(2.6, layout.width / (r.x1 - r.x0), layout.height / (r.y1 - r.y0));
   const scale = fit * zoom;
   return {
     zoom,
     pan: {
-      x: -((x0 + x1) / 2 - layout.width / 2) * scale,
-      y: -((top + bottom) / 2 - layout.height / 2) * scale,
+      x: -((r.x0 + r.x1) / 2 - layout.width / 2) * scale,
+      y: -((r.y0 + r.y1) / 2 - layout.height / 2) * scale,
     },
   };
+}
+
+function zoneAt(layout: SceneLayout, x: number, y: number): ZoneId {
+  if (x < layout.rooms.pending[1]) return "pending";
+  if (x < layout.rooms.production[1]) return "production";
+  if (y < layout.coldFloorY - 20) return "stored";
+  return x < layout.coldSplitX ? "ready_dispatch" : "delivered";
 }
 
 export function KitchenScene({
@@ -48,7 +74,8 @@ export function KitchenScene({
   tv,
   calm,
   entering,
-  focusProduction,
+  focus = null,
+  onFocus,
   onSelect,
   onOverflow,
 }: {
@@ -59,15 +86,17 @@ export function KitchenScene({
   tv: boolean;
   calm: boolean;
   entering?: string[];
-  /** Encuadra solo la sala de producción y oculta el resto de los pedidos. */
-  focusProduction?: boolean;
+  /** Sección ampliada a pantalla completa; el resto de los pedidos se oculta. */
+  focus?: ZoneId | null;
+  /** Pide entrar a una sección (click en su cartel o zoom sobre ella) o volver al plano general (null). */
+  onFocus?: (zone: ZoneId | null) => void;
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
   const [size, setSize] = useState({ width: 1600, height: 900 });
   // Redondeado para no recalcular el armado en cada píxel de un resize.
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 20) / 20;
-  const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focusProduction), [orders, aspect, focusProduction]);
+  const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focus), [orders, aspect, focus]);
   const currentRango = currentAndNextRangos().current;
   const [labels, setLabels] = useState(true);
   const fit = Math.min(size.width / layout.width, size.height / layout.height);
@@ -76,13 +105,30 @@ export function KitchenScene({
   const [override, setOverride] = useState<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // Al entrar a una vista los últimos pasos de la rueda se ignoran, para no seguir acercando de más.
+  const wheelReadyAt = useRef(0);
+  useEffect(() => {
+    wheelReadyAt.current = Date.now() + 450;
+  }, []);
 
-  const auto = focusProduction ? productionCamera(layout, fit) : { zoom: 1, pan: { x: 0, y: 0 } };
+  const contentBottom = useMemo(() => {
+    if (!focus || focus === "stored") return undefined;
+    const ys = [...positions.values()].flat().filter((p) => p.zone === focus && p.kind === "crate").map((p) => p.y);
+    return ys.length ? Math.max(...ys) : undefined;
+  }, [positions, focus]);
+  const auto = focus ? focusCamera(layout, focus, fit, contentBottom) : { zoom: 1, pan: { x: 0, y: 0 } };
   const zoom = override?.zoom ?? auto.zoom;
   const pan = override?.pan ?? auto.pan;
 
   function currentCam() {
     return override ?? auto;
+  }
+
+  /** Cambia el zoom dejando quieto el punto de pantalla `m` (offset desde el centro del contenedor). */
+  function zoomTo(next: number, m = { x: 0, y: 0 }) {
+    const base = currentCam();
+    const k = next / base.zoom;
+    setOverride({ zoom: next, pan: { x: m.x - (m.x - base.pan.x) * k, y: m.y - (m.y - base.pan.y) * k } });
   }
 
   useEffect(() => {
@@ -117,8 +163,21 @@ export function KitchenScene({
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
+    if (!box.current || Date.now() < wheelReadyAt.current) return;
     const base = currentCam();
-    setOverride({ ...base, zoom: Math.min(2.6, Math.max(0.7, base.zoom + (e.deltaY > 0 ? -0.08 : 0.08))) });
+    const next = Math.min(2.6, Math.max(0.7, base.zoom + (e.deltaY > 0 ? -0.08 : 0.08)));
+    const rect = box.current.getBoundingClientRect();
+    const m = { x: e.clientX - rect.left - rect.width / 2, y: e.clientY - rect.top - rect.height / 2 };
+    if (onFocus && !focus && e.deltaY < 0 && next >= FOCUS_ZOOM) {
+      const s = fit * base.zoom;
+      onFocus(zoneAt(layout, layout.width / 2 + (m.x - base.pan.x) / s, layout.height / 2 + (m.y - base.pan.y) / s));
+      return;
+    }
+    if (onFocus && focus && e.deltaY > 0 && next < auto.zoom * 0.75) {
+      onFocus(null);
+      return;
+    }
+    zoomTo(next, m);
   }
 
   function isDimmed(order: MonitorOrder) {
@@ -160,16 +219,20 @@ export function KitchenScene({
       >
         <KitchenBackdrop calm={calm} layout={layout} />
 
-        <div className="pointer-events-none absolute inset-0">
-          {ZONE_ORDER.filter((zone) => !focusProduction || zone === "production").map((zone) => {
+        {/* Carteles por encima de las cajas: se pueden tocar para ampliar la sección. */}
+        <div className="pointer-events-none absolute inset-0 z-10">
+          {ZONE_ORDER.filter((zone) => !focus || zone === focus).map((zone) => {
             const Icon = ZONE_ICON[zone];
             const meta = STATUS_META[zone];
             const count = buckets[zone].length;
             const units = buckets[zone].reduce((s, o) => s + o.unitsOrdered, 0);
             return (
-              <div
+              <button
+                type="button"
                 key={zone}
-                className="sector-tag absolute"
+                title={focus ? undefined : `Ver ${ZONE_LABEL[zone].toLowerCase()} en grande`}
+                onClick={() => !focus && onFocus?.(zone)}
+                className={`sector-tag absolute ${focus ? "" : "pointer-events-auto cursor-pointer"}`}
                 style={{
                   left: layout.tags[zone].x,
                   top: layout.tags[zone].y,
@@ -182,11 +245,11 @@ export function KitchenScene({
                 <span className="sector-tag__name">{ZONE_LABEL[zone]}</span>
                 <span className="sector-tag__count">{count}</span>
                 <span className="text-[10px] text-[#9a837d]">{units} potes</span>
-              </div>
+              </button>
             );
           })}
 
-          {!focusProduction && layout.fridge.xs.map((fx, i) => {
+          {(!focus || focus === "stored") && layout.fridge.xs.map((fx, i) => {
             const list = perFridge[i];
             const units = list.reduce((s, o) => s + o.unitsOrdered, 0);
             return (
@@ -201,7 +264,7 @@ export function KitchenScene({
           })}
         </div>
 
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 z-0">
           {crew.map((w, i) => (
             <svg
               key={w.id}
@@ -218,7 +281,7 @@ export function KitchenScene({
           {orders.flatMap((order, i) => {
             const slots = positions.get(order.id);
             if (!slots) return [];
-            const visible = focusProduction ? slots.filter((slot) => slot.zone === "production") : slots;
+            const visible = focus ? slots.filter((slot) => slot.zone === focus) : slots;
             if (visible.length === 0) return [];
             const dimmed = isDimmed(order);
             const isEntering = entering?.includes(order.id);
@@ -247,15 +310,15 @@ export function KitchenScene({
         </div>
       </div>
 
-      {focusProduction && orders.length === 0 && (
+      {focus && orders.length === 0 && (
         <div className="glass absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-2xl px-5 py-3 text-sm text-[#6f5750]">
-          No hay pedidos en producción para esta fecha
+          No hay pedidos en {ZONE_LABEL[focus].toLowerCase()} para esta fecha
         </div>
       )}
 
       <div className="glass absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl p-1">
-        <Ctrl label="Alejar" onClick={() => { const base = currentCam(); setOverride({ ...base, zoom: Math.max(0.7, base.zoom - 0.1) }); }}><ZoomOut className="h-4 w-4" /></Ctrl>
-        <Ctrl label="Acercar" onClick={() => { const base = currentCam(); setOverride({ ...base, zoom: Math.min(2.6, base.zoom + 0.1) }); }}><ZoomIn className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Alejar" onClick={() => zoomTo(Math.max(0.7, currentCam().zoom - 0.1))}><ZoomOut className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Acercar" onClick={() => zoomTo(Math.min(2.6, currentCam().zoom + 0.1))}><ZoomIn className="h-4 w-4" /></Ctrl>
         <Ctrl label="Centrar" onClick={() => setOverride(null)}><Crosshair className="h-4 w-4" /></Ctrl>
         <Ctrl label="Etiquetas" active={labels} onClick={() => setLabels((v) => !v)}><Tag className="h-4 w-4" /></Ctrl>
       </div>

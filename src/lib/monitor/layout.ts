@@ -130,7 +130,7 @@ export function computeLayout(
   buckets: Record<ZoneId, MonitorOrder[]>,
   aspect: number,
   perFridgeMax: number,
-  focusProduction = false,
+  focus: ZoneId | null = null,
 ): SceneLayout {
   const height = WORLD_HEIGHT;
   const minTotal = ROOM_MIN.pending + ROOM_MIN.production + ROOM_MIN.cold;
@@ -138,10 +138,16 @@ export function computeLayout(
 
   let a: number;
   let b: number;
-  if (focusProduction) {
-    // Vista Producción: la sala ocupa casi todo el mundo y los otros ambientes quedan como bordes.
+  // Vista enfocada: el ambiente elegido ocupa casi todo el mundo y los otros quedan como bordes.
+  if (focus === "production") {
     a = 160;
     b = width - 160;
+  } else if (focus === "pending") {
+    a = width - 320;
+    b = width - 160;
+  } else if (focus) {
+    a = 160;
+    b = 320;
   } else {
     const nPending = buckets.pending.length;
     const nProd = buckets.production.length;
@@ -164,7 +170,10 @@ export function computeLayout(
 
   const nDispatch = buckets.ready_dispatch.length;
   const nDelivered = buckets.delivered.length;
-  const dispatchShare = Math.min(0.62, Math.max(0.38, (1 + nDispatch) / (2 + nDispatch + nDelivered)));
+  const dispatchShare =
+    focus === "ready_dispatch" ? 0.86
+    : focus === "delivered" ? 0.14
+    : Math.min(0.62, Math.max(0.38, (1 + nDispatch) / (2 + nDispatch + nDelivered)));
   const coldSplitX = b + coldW * dispatchShare;
   const lowerY = coldFloorY + 140;
 
@@ -232,7 +241,7 @@ function crateGrid(box: ZoneBox, total: number) {
   };
 }
 
-export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focusProduction = false) {
+export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focus: ZoneId | null = null) {
   const buckets = bucketize(orders);
 
   const perFridge: MonitorOrder[][] = [[], [], []];
@@ -240,7 +249,7 @@ export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focusProduc
   perFridge.forEach((list) => list.sort(sortForShelf));
   const perFridgeMax = Math.max(0, ...perFridge.map((l) => l.length));
 
-  const layout = computeLayout(buckets, aspect, perFridgeMax, focusProduction);
+  const layout = computeLayout(buckets, aspect, perFridgeMax, focus);
 
   const positions = new Map<string, SlotPos[]>();
   const push = (id: string, pos: SlotPos) => {

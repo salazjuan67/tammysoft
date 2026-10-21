@@ -12,8 +12,16 @@ export type CrewStation = { x: number; y: number };
  */
 export type CrewTable = { y: number; x0: number; x1: number };
 /** Un grupo por ambiente: `count` personas que se reparten entre los huecos libres de sus mesas. */
-export type CrewGroup = { key: string; count: number; tables: CrewTable[]; accent: string; courier?: boolean };
-export type CrewGroupWithStations = Omit<CrewGroup, "tables"> & { stations: CrewStation[] };
+export type CrewGroup = {
+  key: string;
+  count: number;
+  tables: CrewTable[];
+  accent: string;
+  courier?: boolean;
+};
+export type CrewGroupWithStations = Omit<CrewGroup, "tables"> & {
+  stations: CrewStation[];
+};
 
 export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   const { width: W, rooms, zones, coldSplitX } = layout;
@@ -29,8 +37,15 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   const groups: CrewGroup[] = [
     {
       key: "production",
-      count: Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production)),
-      tables: [0, 1, 2].map((t) => ({ y: 480 + t * 280, x0: a + 80, x1: a + 60 + prodTableW + 40 })),
+      count: Math.min(
+        6,
+        Math.ceil(crew.production / ORDERS_PER_WORKER.production),
+      ),
+      tables: [0, 1, 2].map((t) => ({
+        y: 480 + t * 280,
+        x0: a + 80,
+        x1: a + 60 + prodTableW + 40,
+      })),
       accent: "#e38ea1",
     },
   ];
@@ -38,7 +53,11 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
     groups.push({
       key: "pending",
       count: Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending)),
-      tables: [0, 1].map((t) => ({ y: 700 + t * 300, x0: 80, x1: 50 + pendingTableW + 30 })),
+      tables: [0, 1].map((t) => ({
+        y: 700 + t * 300,
+        x0: 80,
+        x1: 50 + pendingTableW + 30,
+      })),
       accent: "#d7a68d",
     });
   }
@@ -46,7 +65,9 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
     groups.push({
       key: "dispatch",
       count: crew.dispatch > 0 ? 1 : 0,
-      tables: [{ y: lowerTableY + 130, x0: b + 80, x1: b + 40 + dispatchTableW + 30 }],
+      tables: [
+        { y: lowerTableY + 130, x0: b + 80, x1: b + 40 + dispatchTableW + 30 },
+      ],
       accent: "#a27fc0",
       courier: true,
     });
@@ -62,13 +83,20 @@ const STATION_SPACING = 90;
  * (`clearance` = distancia horizontal mínima al centro de una caja de esa mesa).
  * Las mesas se intercalan para que las primeras personas queden repartidas.
  */
-export function crewStations(group: CrewGroup, crates: CrewStation[], clearance: number): CrewGroupWithStations {
+export function crewStations(
+  group: CrewGroup,
+  crates: CrewStation[],
+  clearance: number,
+): CrewGroupWithStations {
   const perTable = group.tables.map((t) => {
-    const onTable = crates.filter((c) => c.y < t.y && c.y > t.y - 300).map((c) => c.x);
+    const onTable = crates
+      .filter((c) => c.y < t.y && c.y > t.y - 300)
+      .map((c) => c.x);
     const picked: number[] = [];
     for (let x = t.x0; x <= t.x1; x += STATION_STEP) {
       if (onTable.some((cx) => Math.abs(cx - x) < clearance)) continue;
-      if (picked.length && x - picked[picked.length - 1] < STATION_SPACING) continue;
+      if (picked.length && x - picked[picked.length - 1] < STATION_SPACING)
+        continue;
       picked.push(x);
     }
     return picked.map((x) => ({ x, y: t.y }));
@@ -112,6 +140,7 @@ export function KitchenBackdrop({
   // En la vista Producción los otros ambientes quedan como bordes angostos y no llevan mobiliario.
   const showPending = a >= 400;
   const showCold = W - b >= 700;
+  const showProduction = prodW >= 500;
 
   return (
     <svg
@@ -310,70 +339,74 @@ export function KitchenBackdrop({
         </>
       )}
 
-      {/* Sala de producción: estantes, placa, mesas, batidora */}
-      {Array.from({ length: shelfCount }, (_, i) => (
-        <IsoShelf
-          key={i}
-          x={a + 80 + i * 300}
-          y={46}
-          tint={i % 2 ? "#c9b8e8" : undefined}
-        />
-      ))}
-      <g>
-        <rect
-          x={b - 200}
-          y="90"
-          width="170"
-          height="40"
-          rx="8"
-          fill="#fff"
-          stroke="#f0cfd0"
-        />
-        <text
-          x={b - 115}
-          y="116"
-          textAnchor="middle"
-          fill="#c45b72"
-          fontFamily="sans-serif"
-          fontSize="13"
-          fontWeight="700"
-          letterSpacing="2"
-        >
-          PRODUCCIÓN
-        </text>
-      </g>
-      <IsoTable
-        x={a + 60}
-        y={340}
-        w={prodTableW}
-        d={130}
-        h={40}
-        top="#e8e4e0"
-        left="#b9b1aa"
-        right="#d9d2cb"
-        edge="#a39b94"
-      />
-      <IsoTable
-        x={a + 60}
-        y={620}
-        w={prodTableW}
-        d={130}
-        h={40}
-        top="#f6dcc0"
-        left="#c99a70"
-        right="#e6c29c"
-      />
-      <IsoTable
-        x={a + 60}
-        y={900}
-        w={prodTableW}
-        d={130}
-        h={40}
-        top="#e8e4e0"
-        left="#b9b1aa"
-        right="#d9d2cb"
-        edge="#a39b94"
-      />
+      {/* Sala de producción: estantes, placa, mesas */}
+      {showProduction && (
+        <>
+          {Array.from({ length: shelfCount }, (_, i) => (
+            <IsoShelf
+              key={i}
+              x={a + 80 + i * 300}
+              y={46}
+              tint={i % 2 ? "#c9b8e8" : undefined}
+            />
+          ))}
+          <g>
+            <rect
+              x={b - 200}
+              y="90"
+              width="170"
+              height="40"
+              rx="8"
+              fill="#fff"
+              stroke="#f0cfd0"
+            />
+            <text
+              x={b - 115}
+              y="116"
+              textAnchor="middle"
+              fill="#c45b72"
+              fontFamily="sans-serif"
+              fontSize="13"
+              fontWeight="700"
+              letterSpacing="2"
+            >
+              PRODUCCIÓN
+            </text>
+          </g>
+          <IsoTable
+            x={a + 60}
+            y={340}
+            w={prodTableW}
+            d={130}
+            h={40}
+            top="#e8e4e0"
+            left="#b9b1aa"
+            right="#d9d2cb"
+            edge="#a39b94"
+          />
+          <IsoTable
+            x={a + 60}
+            y={620}
+            w={prodTableW}
+            d={130}
+            h={40}
+            top="#f6dcc0"
+            left="#c99a70"
+            right="#e6c29c"
+          />
+          <IsoTable
+            x={a + 60}
+            y={900}
+            w={prodTableW}
+            d={130}
+            h={40}
+            top="#e8e4e0"
+            left="#b9b1aa"
+            right="#d9d2cb"
+            edge="#a39b94"
+          />
+        </>
+      )}
 
       {showCold && (
         <>
