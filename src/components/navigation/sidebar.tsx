@@ -183,6 +183,7 @@ export function Sidebar({ userRol, userName }: SidebarProps) {
     <>
       {/* Mobile toggle */}
       <button
+        data-sidebar="mobile-toggle"
         className="fixed top-4 left-4 z-50 md:hidden bg-pink-600 text-white p-2 rounded-lg shadow-lg"
         onClick={() => setOpen(!open)}
       >
@@ -208,7 +209,7 @@ export function Sidebar({ userRol, userName }: SidebarProps) {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:flex-col w-64 bg-pink-600 min-h-screen flex-shrink-0">
+      <aside data-sidebar="desktop" className="hidden md:flex md:flex-col w-64 bg-pink-600 min-h-screen flex-shrink-0">
         <NavContent />
       </aside>
     </>

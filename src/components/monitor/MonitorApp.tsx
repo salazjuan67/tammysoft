@@ -30,12 +30,31 @@ export function MonitorApp() {
   const [tv, setTv] = useState(false);
   const [calm, setCalm] = useState(false);
   const [fridge, setFridge] = useState(false);
+  // Preferencias de espacio: ocultar menú lateral del dashboard y/o la columna de alertas.
+  const [sidebarOff, setSidebarOff] = useState(false);
+  const [panelOff, setPanelOff] = useState(false);
   const { snapshot, conn, diff, error } = useMonitorDashboard(fecha, demo);
 
   useEffect(() => {
     const small = window.matchMedia("(max-width: 900px)").matches;
     if (small) setView("list");
+    setSidebarOff(localStorage.getItem("tammy.ops.sidebar") === "off");
+    setPanelOff(localStorage.getItem("tammy.ops.panel") === "off");
   }, []);
+
+  function toggleSidebar() {
+    setSidebarOff((v) => { localStorage.setItem("tammy.ops.sidebar", v ? "on" : "off"); return !v; });
+  }
+  function togglePanel() {
+    setPanelOff((v) => { localStorage.setItem("tammy.ops.panel", v ? "on" : "off"); return !v; });
+  }
+
+  // El menú lateral vive en el layout del dashboard (server); se oculta con una clase en <html>.
+  useEffect(() => {
+    const hide = sidebarOff || tv;
+    document.documentElement.classList.toggle("tammy-ops-focus", hide);
+    return () => document.documentElement.classList.remove("tammy-ops-focus");
+  }, [sidebarOff, tv]);
 
   const alertIds = useMemo(() => new Set(snapshot?.alerts.map((a) => a.orderId) ?? []), [snapshot]);
   const selected: MonitorOrder | null = snapshot?.orders.find((o) => o.id === selectedId) ?? null;
@@ -90,8 +109,12 @@ export function MonitorApp() {
         demo={demo}
         tv={tv}
         calm={calm}
+        sidebarOff={sidebarOff || tv}
+        panelOff={panelOff}
         onTv={() => setTv((v) => !v)}
         onCalm={() => setCalm((v) => !v)}
+        onSidebar={toggleSidebar}
+        onPanel={togglePanel}
         onFullscreen={fullscreen}
       />
       {snapshot && <MonitorKpiBar kpis={snapshot.kpis} filter={filter} onFilter={setFilter} />}
@@ -101,7 +124,7 @@ export function MonitorApp() {
         </p>
       )}
 
-      <div className="flex min-h-0 flex-1 gap-3 px-5 pb-3">
+      <div className="relative flex min-h-0 flex-1 gap-3 px-5 pb-3">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[240px] flex-1">
@@ -184,7 +207,12 @@ export function MonitorApp() {
           )}
         </div>
 
-        {snapshot && (
+        {snapshot && panelOff && selected && (
+          <div className="absolute bottom-3 right-5 z-30 hidden w-[340px] lg:block" style={{ height: "min(78dvh, 720px)" }}>
+            <OrderDetailDrawer order={selected} tv={tv} alert={alertIds.has(selected.id)} onClose={() => setSelectedId(null)} />
+          </div>
+        )}
+        {snapshot && !panelOff && (
           <div className="hidden w-[340px] shrink-0 flex-col gap-3 lg:flex">
             {selected ? (
               <>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Maximize2, CalendarDays, Tv, Wind } from "lucide-react";
+import { Maximize2, CalendarDays, Tv, Wind, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { ConnState } from "./useMonitorDashboard";
 
 export function MonitorHeader({
@@ -11,8 +11,12 @@ export function MonitorHeader({
   demo,
   tv,
   calm,
+  sidebarOff,
+  panelOff,
   onTv,
   onCalm,
+  onSidebar,
+  onPanel,
   onFullscreen,
 }: {
   fecha: string;
@@ -22,8 +26,12 @@ export function MonitorHeader({
   demo: boolean;
   tv: boolean;
   calm: boolean;
+  sidebarOff: boolean;
+  panelOff: boolean;
   onTv: () => void;
   onCalm: () => void;
+  onSidebar: () => void;
+  onPanel: () => void;
   onFullscreen: () => void;
 }) {
   const label = conn === "live" ? "En vivo · 15 s" : conn === "connecting" ? "Conectando" : conn === "stale" ? "Datos desactualizados" : "Sin conexión";
@@ -55,6 +63,14 @@ export function MonitorHeader({
           <span className="font-medium text-[#3f2b25]">{label}</span>
           {hora && <span className="plate text-[#9a837d]">{hora}</span>}
         </span>
+        <div className="glass hidden items-center gap-0.5 rounded-full p-1 lg:flex">
+          <HBtn label={sidebarOff ? "Mostrar menú lateral" : "Ocultar menú lateral"} active={sidebarOff} onClick={onSidebar}>
+            {sidebarOff ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </HBtn>
+          <HBtn label={panelOff ? "Mostrar alertas y resumen" : "Ocultar alertas y resumen"} active={panelOff} onClick={onPanel}>
+            {panelOff ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          </HBtn>
+        </div>
         <div className="glass flex items-center gap-0.5 rounded-full p-1">
           <HBtn label={tv ? "Modo mesa" : "Modo TV"} active={tv} onClick={onTv}><Tv className="h-4 w-4" /></HBtn>
           <HBtn label={calm ? "Ambiente" : "Modo calma"} active={calm} onClick={onCalm}><Wind className="h-4 w-4" /></HBtn>

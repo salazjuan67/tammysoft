@@ -1,3 +1,6 @@
+/* Modo foco: el monitor oculta el menú lateral del dashboard para ganar ancho. */
+html.tammy-ops-focus [data-sidebar] { display: none !important; }
+
 .tammy-ops {
   --ops-ink: #3f2b25;
   --ops-ink-2: #6f5750;
