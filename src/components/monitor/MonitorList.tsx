@@ -1,16 +1,9 @@
 "use client";
 
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
-import { matchesFilter, sceneStatus } from "@/lib/monitor/selectors";
+import { matchesFilter } from "@/lib/monitor/selectors";
 import { getRangoLabel } from "@/lib/utils";
-
-const LABEL: Record<string, string> = {
-  pending: "Pendiente",
-  production: "Producción",
-  stored: "Heladera",
-  ready_dispatch: "Despacho",
-  delivered: "Entregado",
-};
+import { StatusBadge } from "./ui";
 
 export function MonitorList({
   orders,
@@ -35,16 +28,16 @@ export function MonitorList({
   });
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto rounded-3xl border border-[#ead7cf] bg-white">
+    <div className="glass min-h-0 flex-1 overflow-auto rounded-[22px]">
       <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-[#fff7f4] text-left text-xs uppercase text-[#8b6b66]">
-          <tr>
-            <th className="px-3 py-2">Código</th>
-            <th className="px-3 py-2">Cliente</th>
-            <th className="px-3 py-2">Estado</th>
-            <th className="px-3 py-2">Unidades</th>
-            <th className="px-3 py-2">Horario</th>
-            <th className="px-3 py-2">Ubicación</th>
+        <thead className="sticky top-0 bg-white/95 text-left backdrop-blur">
+          <tr className="label-caps">
+            <th className="px-4 py-3">Código</th>
+            <th className="px-4 py-3">Cliente</th>
+            <th className="px-4 py-3">Estado</th>
+            <th className="px-4 py-3 text-right">Potes</th>
+            <th className="px-4 py-3">Horario</th>
+            <th className="px-4 py-3">Ubicación</th>
           </tr>
         </thead>
         <tbody>
@@ -54,20 +47,23 @@ export function MonitorList({
               <tr
                 key={o.id}
                 onClick={() => onSelect(o.id)}
-                className={`cursor-pointer border-t border-[#f3e4de] hover:bg-pink-50 ${selectedId === o.id ? "bg-pink-50" : ""}`}
+                className={`cursor-pointer border-t border-[#f6e9e4] transition hover:bg-[#fff7f4] ${selectedId === o.id ? "bg-[#fff1ee]" : ""}`}
               >
-                <td className="px-3 py-2 font-semibold">{o.code}</td>
-                <td className="px-3 py-2">{o.endCustomerName ?? o.customerName}</td>
-                <td className="px-3 py-2">{LABEL[o.status] ?? sceneStatus(o)}</td>
-                <td className="px-3 py-2">{o.unitsOrdered}</td>
-                <td className="px-3 py-2">{getRangoLabel(o.rangoHorario)}</td>
-                <td className="px-3 py-2">{p ? `H${p.fridgeId}${p.shelfId ? `/${p.shelfId}` : ""}` : "—"}</td>
+                <td className="plate px-4 py-2.5 text-[#3f2b25]">{o.code}</td>
+                <td className="px-4 py-2.5">
+                  <span className="block font-medium text-[#3f2b25]">{o.endCustomerName ?? o.customerName}</span>
+                  {o.endCustomerName && <span className="block text-[11px] text-[#9a837d]">{o.customerName}</span>}
+                </td>
+                <td className="px-4 py-2.5"><StatusBadge status={o.status} alert={alertIds.has(o.id)} /></td>
+                <td className="plate px-4 py-2.5 text-right">{o.unitsOrdered}</td>
+                <td className="px-4 py-2.5 text-[#6f5750]">{getRangoLabel(o.rangoHorario)}</td>
+                <td className="plate px-4 py-2.5 text-[#6f5750]">{p ? `H${p.fridgeId}${p.shelfId ? `/${p.shelfId}` : ""}` : "—"}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      {rows.length === 0 && <p className="py-12 text-center text-sm text-gray-400">No hay pedidos para este filtro</p>}
+      {rows.length === 0 && <p className="py-12 text-center text-sm text-[#9a837d]">No hay pedidos para este filtro</p>}
     </div>
   );
 }

@@ -1,10 +1,28 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag } from "lucide-react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
-import { assignSlots, type ZoneId } from "@/lib/monitor/layout";
+import { assignSlots, WORLD, ZONES, type ZoneId } from "@/lib/monitor/layout";
 import { KitchenBackdrop } from "./KitchenBackdrop";
 import { OrderChip } from "./OrderChip";
+import { STATUS_META } from "./ui";
+
+const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
+  pending: ClipboardList,
+  production: ChefHat,
+  stored: Snowflake,
+  ready_dispatch: Package,
+  delivered: CheckCircle2,
+};
+
+const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
+  pending: { x: 96, y: 388 },
+  production: { x: 520, y: 150 },
+  stored: { x: 1028, y: 86 },
+  ready_dispatch: { x: 506, y: 496 },
+  delivered: { x: 1000, y: 512 },
+};
 
 export function KitchenScene({
   orders,
@@ -27,40 +45,91 @@ export function KitchenScene({
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
-  const { positions } = useMemo(() => assignSlots(orders), [orders]);
+  const { positions, buckets } = useMemo(() => assignSlots(orders), [orders]);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [labels, setLabels] = useState(true);
+  const [fit, setFit] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setFit(Math.min(width / WORLD.width, height / WORLD.height));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Las etiquetas HTML se contra-escalan para quedar siempre legibles (como en Carman),
+  // con tope para que no tapen la escena cuando el mundo se achica mucho.
+  const labelScale = Math.min(1.6, Math.max(1, 1 / (fit * zoom)));
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
-    setZoom((z) => Math.min(1.8, Math.max(0.7, z + (e.deltaY > 0 ? -0.08 : 0.08))));
+    setZoom((z) => Math.min(2.2, Math.max(0.7, z + (e.deltaY > 0 ? -0.08 : 0.08))));
   }
 
   return (
     <div
+      ref={box}
       className="relative min-h-0 flex-1 overflow-hidden rounded-[28px] border border-rose-100 bg-[#f8e6dc] shadow-[inset_0_1px_0_rgba(255,255,255,.6)]"
       onWheel={onWheel}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
         drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+        setDragging(true);
       }}
       onPointerMove={(e) => {
         if (!drag.current) return;
-        setPan({
-          x: drag.current.px + (e.clientX - drag.current.x),
-          y: drag.current.py + (e.clientY - drag.current.y),
-        });
+        setPan({ x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) });
       }}
-      onPointerUp={() => { drag.current = null; }}
-      onPointerLeave={() => { drag.current = null; }}
+      onPointerUp={() => { drag.current = null; setDragging(false); }}
+      onPointerLeave={() => { drag.current = null; setDragging(false); }}
     >
       <div
-        className="absolute inset-0 grid origin-center place-items-center"
-        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        className="absolute left-1/2 top-1/2"
+        style={{
+          width: WORLD.width,
+          height: WORLD.height,
+          transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${fit * zoom})`,
+          transformOrigin: "center",
+          transition: dragging ? "none" : "transform 160ms ease",
+        }}
       >
-        <div className="relative aspect-[16/9] h-full max-w-full">
         <KitchenBackdrop calm={calm} />
+
+        <div className="pointer-events-none absolute inset-0">
+          {(Object.keys(ZONES) as ZoneId[]).map((zone) => {
+            const Icon = ZONE_ICON[zone];
+            const meta = STATUS_META[zone];
+            const count = buckets[zone].length;
+            const units = buckets[zone].reduce((s, o) => s + o.unitsOrdered, 0);
+            return (
+              <div
+                key={zone}
+                className="sector-tag absolute"
+                style={{
+                  left: TAG_POS[zone].x,
+                  top: TAG_POS[zone].y,
+                  transform: `scale(${labelScale})`,
+                  transformOrigin: "0 100%",
+                  ["--accent" as string]: meta.color,
+                }}
+              >
+                <span className="sector-tag__icon"><Icon className="h-3.5 w-3.5" /></span>
+                <span className="sector-tag__name">{ZONES[zone].label}</span>
+                <span className="sector-tag__count">{count}</span>
+                <span className="text-[10px] text-[#9a837d]">{units} potes</span>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="absolute inset-0">
           {orders.map((order) => {
             const slots = positions.get(order.id);
@@ -82,6 +151,8 @@ export function KitchenScene({
                 tv={tv}
                 dimmed={Boolean(dimmed)}
                 entering={entering?.includes(order.id)}
+                showLabel={labels}
+                labelScale={labelScale}
                 onSelect={(id) => {
                   if (id.startsWith("__overflow_")) onOverflow(id.replace("__overflow_", "") as ZoneId);
                   else onSelect(id);
@@ -90,13 +161,28 @@ export function KitchenScene({
             ));
           })}
         </div>
-        </div>
       </div>
-      <div className="absolute bottom-3 right-3 z-10 flex gap-1">
-        <button type="button" className="rounded-lg bg-white/90 px-2 py-1 text-xs shadow" onClick={() => setZoom((z) => Math.min(1.8, z + 0.1))}>+</button>
-        <button type="button" className="rounded-lg bg-white/90 px-2 py-1 text-xs shadow" onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))}>−</button>
-        <button type="button" className="rounded-lg bg-white/90 px-2 py-1 text-xs shadow" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Centrar</button>
+
+      <div className="glass absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl p-1">
+        <Ctrl label="Alejar" onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))}><ZoomOut className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Acercar" onClick={() => setZoom((z) => Math.min(2.2, z + 0.1))}><ZoomIn className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Centrar" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Crosshair className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Etiquetas" active={labels} onClick={() => setLabels((v) => !v)}><Tag className="h-4 w-4" /></Ctrl>
       </div>
     </div>
+  );
+}
+
+function Ctrl({ children, label, onClick, active }: { children: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={`grid h-9 w-9 place-items-center rounded-lg text-[#6f5750] transition hover:bg-rose-50 ${active ? "bg-rose-100 text-[#c45b72]" : ""}`}
+    >
+      {children}
+    </button>
   );
 }
