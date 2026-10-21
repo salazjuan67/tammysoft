@@ -31,9 +31,14 @@ export function orderCode(id: string) {
   return `#${id.slice(-4).toUpperCase()}`;
 }
 
+/**
+ * "Listo en heladera" (Producción) guarda ENTREGADO + número de heladera: el pedido está terminado
+ * y esperando que el cliente lo retire, así que se muestra en la heladera. El sistema no registra
+ * el retiro; solo un ENTREGADO sin heladera se considera entregado al cliente.
+ */
 export function mapStatus(pedido: PedidoFuente): MonitorStatus {
   if (pedido.estado === "PENDIENTE") return "pending";
-  if (pedido.estado === "ENTREGADO") return "delivered";
+  if (pedido.estado === "ENTREGADO") return pedido.numeroHeladera ? "stored" : "delivered";
   if (pedido.estado === "CANCELADO") return "cancelled";
   if (pedido.estado === "EN_PRODUCCION") {
     return pedido.numeroHeladera ? "stored" : "production";
@@ -66,8 +71,8 @@ export function adaptOrder(pedido: PedidoFuente, now = new Date()): MonitorOrder
   const updatedAt = iso(pedido.updatedAt);
   if (createdAt) timeline.push({ at: createdAt, label: "Pedido creado", source: "createdAt" });
   if (productionStartedAt) timeline.push({ at: productionStartedAt, label: "Pasó a producción", source: "fechaProduccion" });
-  if (status === "delivered" && updatedAt) {
-    timeline.push({ at: updatedAt, label: "Marcado entregado", source: "updatedAt" });
+  if (pedido.estado === "ENTREGADO" && updatedAt) {
+    timeline.push({ at: updatedAt, label: status === "stored" ? "Listo en heladera" : "Marcado entregado", source: "updatedAt" });
   }
 
   const endCustomer = pedido.notas?.trim() || undefined;

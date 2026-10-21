@@ -8,7 +8,9 @@ export function buildAlerts(orders: MonitorOrder[], fecha: string, now = new Dat
   for (const order of orders) {
     if (order.rawEstado === "CANCELADO" || order.status === "delivered") continue;
 
-    const end = rangoEndOnFecha(fecha, order.rangoHorario);
+    // Un pedido ya listo en heladera no puede "vencer": falta el retiro, que el sistema no registra.
+    const ready = order.status === "stored" || order.status === "ready_dispatch";
+    const end = ready ? undefined : rangoEndOnFecha(fecha, order.rangoHorario);
     if (end) {
       const minutes = (end.getTime() - now.getTime()) / 60000;
       if (minutes < 0) {

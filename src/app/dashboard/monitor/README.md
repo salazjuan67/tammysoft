@@ -15,9 +15,12 @@ Mapeo:
 | PENDIENTE | pending (Por hacer) |
 | EN_PRODUCCION sin heladera | production |
 | EN_PRODUCCION con `numeroHeladera` | stored (Heladera) |
-| ENTREGADO | delivered |
+| ENTREGADO con `numeroHeladera` ("Listo en heladera" en Producción) | stored (Heladera): terminado, esperando retiro |
+| ENTREGADO sin heladera | delivered (Entregados hoy) |
 | CANCELADO | no se muestra |
 | — | ready_dispatch: heurística, pedidos en heladera cuyo `rangoHorario` es el actual o el siguiente |
+
+El sistema no registra cuándo el cliente retira: un pedido "Listo en heladera" sigue en la heladera aunque su rango haya pasado. Para que pase a "Entregados" hace falta registrar el retiro (estado o fecha nueva).
 
 Unidades = suma de `items.cantidad` (potes).
 
@@ -28,7 +31,7 @@ Historial del panel: solo `createdAt`, `fechaProduccion` y `updatedAt` si está 
 ## Alertas
 
 - Entrega próxima: fin del rango horario ≤ 30 min (`ALERT_SOON_MINUTES`).
-- Entrega vencida: fin del rango ya pasó y el pedido no está entregado.
+- Entrega vencida / próxima: solo para pedidos que todavía no están listos (por hacer o en producción); un pedido en heladera no vence.
 - Producción demorada: `fechaProduccion` hace ≥ 3 h y sigue en producción (`PRODUCTION_DELAY_HOURS`).
 - Zona horaria: `America/Argentina/Buenos_Aires`.
 
