@@ -90,6 +90,23 @@ export const TUTORIALES: TutorialPantalla[] = [
     ],
   },
   {
+    ruta: "/dashboard/monitor",
+    audiencia: "staff",
+    titulo: "Tammy Ops",
+    queHace:
+      "Monitor del obrador: ves los pedidos del día como bandejas en un local isométrico, filtrás por estado y abrís el detalle. No cambia estados; para operar se va a Pedidos o Producción.",
+    guias: [
+      {
+        titulo: "Leer el día",
+        pasos: [
+          "Las tarjetas de arriba filtran la escena (pendiente, producción, heladera, despacho, entregados, alertas).",
+          "Tocá una bandeja para ver cliente, productos y ubicación.",
+          "Despacho no es un estado del sistema: agrupa pedidos ya en heladera cuyo horario es el actual o el siguiente.",
+        ],
+      },
+    ],
+  },
+  {
     ruta: "/dashboard/cobranza",
     audiencia: "staff",
     titulo: "Cobranza",

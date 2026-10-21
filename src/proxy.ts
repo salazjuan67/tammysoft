@@ -14,6 +14,7 @@ const roleRoutes: Record<string, string[]> = {
   "/dashboard/reportes": ["ADMIN", "OPERARIO"],
   "/dashboard/cobranza": ["ADMIN", "OPERARIO"],
   "/dashboard/produccion": ["ADMIN", "OPERARIO"],
+  "/dashboard/monitor": ["ADMIN", "OPERARIO"],
 };
 
 export default auth(function middleware(req: NextRequest & { auth: { user: { rol: string } } | null }) {

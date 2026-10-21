@@ -9,6 +9,7 @@ import {
   DollarSign,
   Settings,
   BarChart3,
+  LayoutDashboard,
   LogOut,
   Home,
   X,
@@ -46,6 +47,12 @@ const navItems: NavItem[] = [
     href: "/dashboard/produccion",
     label: "Producción",
     icon: <ChefHat className="h-5 w-5" />,
+    roles: ["ADMIN", "OPERARIO"],
+  },
+  {
+    href: "/dashboard/monitor",
+    label: "Tammy Ops",
+    icon: <LayoutDashboard className="h-5 w-5" />,
     roles: ["ADMIN", "OPERARIO"],
   },
   {
