@@ -10,7 +10,7 @@ const PRODUCTOS: Array<[string, string]> = [
 ];
 const RANGOS = ["H7_8", "H9_10", "H10_12", "H12_14", "H14_16", "H16_18"];
 
-/** Día cargado de ejemplo: 5 por hacer, 12 en producción, 8 listos en heladera, 3 entregados sin heladera. */
+/** Día cargado de ejemplo: 5 por hacer, 12 en producción, 8 listos en heladera, 4 ya retirados. */
 export function demoSnapshot(fecha = fechaKey()) {
   const base = `${fecha}T12:00:00.000-03:00`;
   const fechaEntrega = `${fecha}T00:00:00.000Z`;
@@ -41,7 +41,7 @@ export function demoSnapshot(fecha = fechaKey()) {
   for (let i = 0; i < 8; i++) {
     push("ENTREGADO", { fechaProduccion: base, updatedAt: base, numeroHeladera: String((i % 3) + 1), estante: ["A", "B", "C"][Math.floor(i / 3) % 3] });
   }
-  for (let i = 0; i < 3; i++) push("ENTREGADO", { updatedAt: base });
+  for (let i = 0; i < 4; i++) push("ENTREGADO", { updatedAt: base, fechaRetiro: base, numeroHeladera: String((i % 3) + 1) });
 
   const snap = buildSnapshot(pedidos, fecha);
   return { ...snap, demo: true as const };

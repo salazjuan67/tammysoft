@@ -10,6 +10,7 @@ export type PedidoFuente = {
   notas?: string | null;
   numeroHeladera?: string | null;
   estante?: string | null;
+  fechaRetiro?: string | Date | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
   cliente?: { nombre?: string | null } | null;
@@ -33,12 +34,12 @@ export function orderCode(id: string) {
 
 /**
  * "Listo en heladera" (Producción) guarda ENTREGADO + número de heladera: el pedido está terminado
- * y esperando que el cliente lo retire, así que se muestra en la heladera. El sistema no registra
- * el retiro; solo un ENTREGADO sin heladera se considera entregado al cliente.
+ * y esperando que el cliente lo retire, así que se muestra en la heladera. Pasa a entregado cuando
+ * se marca el retiro (`fechaRetiro`), o si se marcó ENTREGADO sin heladera.
  */
 export function mapStatus(pedido: PedidoFuente): MonitorStatus {
   if (pedido.estado === "PENDIENTE") return "pending";
-  if (pedido.estado === "ENTREGADO") return pedido.numeroHeladera ? "stored" : "delivered";
+  if (pedido.estado === "ENTREGADO") return pedido.numeroHeladera && !pedido.fechaRetiro ? "stored" : "delivered";
   if (pedido.estado === "CANCELADO") return "cancelled";
   if (pedido.estado === "EN_PRODUCCION") {
     return pedido.numeroHeladera ? "stored" : "production";
@@ -69,10 +70,14 @@ export function adaptOrder(pedido: PedidoFuente, now = new Date()): MonitorOrder
   const createdAt = iso(pedido.createdAt);
   const productionStartedAt = iso(pedido.fechaProduccion);
   const updatedAt = iso(pedido.updatedAt);
+  const pickedUpAt = iso(pedido.fechaRetiro);
   if (createdAt) timeline.push({ at: createdAt, label: "Pedido creado", source: "createdAt" });
   if (productionStartedAt) timeline.push({ at: productionStartedAt, label: "Pasó a producción", source: "fechaProduccion" });
-  if (pedido.estado === "ENTREGADO" && updatedAt) {
+  if (pedido.estado === "ENTREGADO" && updatedAt && !pickedUpAt) {
     timeline.push({ at: updatedAt, label: status === "stored" ? "Listo en heladera" : "Marcado entregado", source: "updatedAt" });
+  }
+  if (pedido.estado === "ENTREGADO" && pickedUpAt) {
+    timeline.push({ at: pickedUpAt, label: "Retirado por el cliente", source: "fechaRetiro" });
   }
 
   const endCustomer = pedido.notas?.trim() || undefined;
@@ -88,7 +93,7 @@ export function adaptOrder(pedido: PedidoFuente, now = new Date()): MonitorOrder
     deliveryAt: iso(pedido.fechaEntrega),
     createdAt,
     productionStartedAt,
-    deliveredAt: status === "delivered" ? updatedAt : undefined,
+    deliveredAt: status === "delivered" ? pickedUpAt ?? updatedAt : undefined,
     unitsOrdered,
     items,
     placements,

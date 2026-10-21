@@ -190,6 +190,8 @@ model Pedido {
   notas           String?
   numeroHeladera  String?
   estante         String?
+  // Cuándo el cliente retiró el pedido de la heladera (ENTREGADO solo indica "listo en heladera").
+  fechaRetiro     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

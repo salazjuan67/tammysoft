@@ -32,7 +32,7 @@ export type MonitorPlacement = {
 export type MonitorTimelineEvent = {
   at: string;
   label: string;
-  source: "createdAt" | "fechaProduccion" | "updatedAt";
+  source: "createdAt" | "fechaProduccion" | "updatedAt" | "fechaRetiro";
 };
 
 export type MonitorOrder = {

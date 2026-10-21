@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate, getRangoLabel, puedeEditarPedido } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Search, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, X, Printer } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, X, Printer, PackageCheck, Undo2 } from "lucide-react";
 import { FormularioPedido } from "@/components/forms/formulario-pedido";
 import { useReactToPrint } from "react-to-print";
 import type { Cliente, Categoria, Producto } from "@/types";
@@ -27,6 +27,8 @@ interface PedidoResumen {
   estado: string;
   montoTotal: number;
   notas: string | null;
+  numeroHeladera?: string | null;
+  fechaRetiro?: string | null;
   createdAt: string;
   _count: { items: number };
   items?: { cantidad: number }[];
@@ -177,6 +179,26 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       });
       if (res.ok) {
         toast({ title: "Estado actualizado" });
+        cargarPedidos();
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", description: err.error, variant: "destructive" });
+      }
+    } finally {
+      setCambiandoEstado(false);
+    }
+  }
+
+  async function marcarRetiro(pedidoId: string, retirado: boolean) {
+    setCambiandoEstado(true);
+    try {
+      const res = await fetch("/api/pedidos/retiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [pedidoId], retirado }),
+      });
+      if (res.ok) {
+        toast({ title: retirado ? "Marcado como retirado" : "Retiro deshecho" });
         cargarPedidos();
       } else {
         const err = await res.json();
@@ -493,7 +515,17 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                               </SelectContent>
                             </Select>
                           ) : (
-                            estadoBadge[pedido.estado]
+                            <div className="flex flex-wrap items-center gap-1">
+                              {estadoBadge[pedido.estado]}
+                              {esEntregado && pedido.fechaRetiro && (
+                                <span className="text-[11px] text-gray-500">
+                                  Retirado {new Date(pedido.fechaRetiro).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              )}
+                              {esEntregado && !pedido.fechaRetiro && pedido.numeroHeladera && (
+                                <span className="text-[11px] text-sky-700">En heladera {pedido.numeroHeladera}</span>
+                              )}
+                            </div>
                           )}
                         </td>
 
@@ -509,6 +541,29 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {esAdmin && esEntregado && !pedido.fechaRetiro && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="El cliente retiró el pedido"
+                                className="gap-1 text-emerald-700 hover:bg-emerald-50"
+                                disabled={cambiandoEstado}
+                                onClick={() => marcarRetiro(pedido.id, true)}
+                              >
+                                <PackageCheck className="h-4 w-4" /> Retirado
+                              </Button>
+                            )}
+                            {esAdmin && esEntregado && pedido.fechaRetiro && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Deshacer retiro"
+                                disabled={cambiandoEstado}
+                                onClick={() => marcarRetiro(pedido.id, false)}
+                              >
+                                <Undo2 className="h-4 w-4" />
+                              </Button>
+                            )}
                             {!esCancelado && !esEntregado && (userRol === "ADMIN" || puedeEditar) && (
                               <Button
                                 variant="ghost"
