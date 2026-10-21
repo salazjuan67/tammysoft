@@ -6,10 +6,15 @@ const ORDERS_PER_WORKER = { pending: 4, production: 3 };
 
 export type Crew = { pending: number; production: number; dispatch: number };
 export type CrewStation = { x: number; y: number };
-/** Un grupo por ambiente: `count` personas repartidas entre más `stations` libres para poder cambiar de lugar. */
-export type CrewGroup = { key: string; count: number; stations: CrewStation[]; accent: string; courier?: boolean };
+/**
+ * Frente de una mesa donde pueden pararse personas: `y` = pies, `x0..x1` = tramo caminable.
+ * Los pies van lo bastante adelante como para que la cabeza quede debajo de las etiquetas de esa mesa.
+ */
+export type CrewTable = { y: number; x0: number; x1: number };
+/** Un grupo por ambiente: `count` personas que se reparten entre los huecos libres de sus mesas. */
+export type CrewGroup = { key: string; count: number; tables: CrewTable[]; accent: string; courier?: boolean };
+export type CrewGroupWithStations = Omit<CrewGroup, "tables"> & { stations: CrewStation[] };
 
-/** Dónde pararse frente a cada mesa; `y` = pies, usado también para ordenar en profundidad con las cajas. */
 export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   const { width: W, rooms, zones, coldSplitX } = layout;
   const [, a] = rooms.pending;
@@ -21,25 +26,19 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   const showPending = a >= 400;
   const showCold = W - b >= 700;
 
-  const groups: CrewGroup[] = [];
-  // Estaciones de producción intercaladas por mesa, así las primeras personas quedan repartidas.
-  const prodStations: CrewStation[] = [];
-  for (const f of [0.3, 0.75, 0.1, 0.52, 0.92, 0.2, 0.42, 0.63, 0.85, 0.04]) {
-    for (let table = 0; table < 3; table++) prodStations.push({ x: a + 60 + prodTableW * f, y: 440 + table * 280 });
-  }
-  groups.push({
-    key: "production",
-    count: Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production)),
-    stations: prodStations,
-    accent: "#e38ea1",
-  });
+  const groups: CrewGroup[] = [
+    {
+      key: "production",
+      count: Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production)),
+      tables: [0, 1, 2].map((t) => ({ y: 480 + t * 280, x0: a + 80, x1: a + 60 + prodTableW + 40 })),
+      accent: "#e38ea1",
+    },
+  ];
   if (showPending) {
-    const pendStations: CrewStation[] = [];
-    for (const f of [0.55, 0.2, 0.85, 0.38, 0.7]) for (let t = 0; t < 2; t++) pendStations.push({ x: 50 + pendingTableW * f, y: 665 + t * 300 });
     groups.push({
       key: "pending",
       count: Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending)),
-      stations: pendStations,
+      tables: [0, 1].map((t) => ({ y: 700 + t * 300, x0: 80, x1: 50 + pendingTableW + 30 })),
       accent: "#d7a68d",
     });
   }
@@ -47,12 +46,40 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
     groups.push({
       key: "dispatch",
       count: crew.dispatch > 0 ? 1 : 0,
-      stations: [0.5, 0.15, 0.85, 0.32, 0.68].map((f) => ({ x: b + 40 + dispatchTableW * f, y: lowerTableY + 95 })),
+      tables: [{ y: lowerTableY + 130, x0: b + 80, x1: b + 40 + dispatchTableW + 30 }],
       accent: "#a27fc0",
       courier: true,
     });
   }
   return groups;
+}
+
+const STATION_STEP = 20;
+const STATION_SPACING = 90;
+
+/**
+ * Lugares frente a cada mesa sin quedar justo delante de una caja
+ * (`clearance` = distancia horizontal mínima al centro de una caja de esa mesa).
+ * Las mesas se intercalan para que las primeras personas queden repartidas.
+ */
+export function crewStations(group: CrewGroup, crates: CrewStation[], clearance: number): CrewGroupWithStations {
+  const perTable = group.tables.map((t) => {
+    const onTable = crates.filter((c) => c.y < t.y && c.y > t.y - 300).map((c) => c.x);
+    const picked: number[] = [];
+    for (let x = t.x0; x <= t.x1; x += STATION_STEP) {
+      if (onTable.some((cx) => Math.abs(cx - x) < clearance)) continue;
+      if (picked.length && x - picked[picked.length - 1] < STATION_SPACING) continue;
+      picked.push(x);
+    }
+    return picked.map((x) => ({ x, y: t.y }));
+  });
+  const stations: CrewStation[] = [];
+  for (let k = 0; perTable.some((l) => k < l.length); k++) {
+    for (const list of perTable) if (k < list.length) stations.push(list[k]);
+  }
+  const { tables: _tables, ...rest } = group;
+  void _tables;
+  return { ...rest, stations, count: Math.min(group.count, stations.length) };
 }
 
 export function KitchenBackdrop({

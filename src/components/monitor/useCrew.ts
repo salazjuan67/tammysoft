@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CrewGroup } from "./KitchenBackdrop";
+import type { CrewGroupWithStations as CrewGroup } from "./KitchenBackdrop";
 
 const MOVE_MIN_MS = 7000;
 const MOVE_MAX_MS = 16000;

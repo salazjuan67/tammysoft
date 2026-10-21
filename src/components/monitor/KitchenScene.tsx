@@ -5,14 +5,14 @@ import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomO
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
-import { crewGroups, KitchenBackdrop } from "./KitchenBackdrop";
+import { crewGroups, crewStations, KitchenBackdrop } from "./KitchenBackdrop";
 import { useCrew } from "./useCrew";
 import { CRATE_W, IsoWorker } from "./Iso";
-
-/** Distancia horizontal mínima entre una persona y el centro de una caja de su mesa. */
-const CREW_CLEARANCE = 105;
 import { OrderChip } from "./OrderChip";
 import { STATUS_META } from "./ui";
+
+/** Distancia horizontal mínima entre una persona y el centro de una caja: puede pisarla, no taparla entera. */
+const CREW_CLEARANCE = 48;
 
 const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
   pending: ClipboardList,
@@ -68,25 +68,6 @@ export function KitchenScene({
   // Redondeado para no recalcular el armado en cada píxel de un resize.
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 20) / 20;
   const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focusProduction), [orders, aspect, focusProduction]);
-  // Las personas se paran entre las cajas de su mesa, nunca delante de una (taparían la etiqueta).
-  const crateCenters = useMemo(
-    () =>
-      [...positions.values()].flat().filter((p) => p.kind === "crate").map((p) => ({ x: p.x + CRATE_W / 2, y: p.y })),
-    [positions],
-  );
-  const crew = useCrew(
-    crewGroups(layout, {
-      pending: buckets.pending.length,
-      production: buckets.production.length,
-      dispatch: buckets.ready_dispatch.length,
-    }).map((g) => {
-      const stations = g.stations.filter(
-        (st) => !crateCenters.some((c) => Math.abs(c.x - st.x) < CREW_CLEARANCE && c.y < st.y && c.y > st.y - 300),
-      );
-      return { ...g, stations, count: Math.min(g.count, stations.length) };
-    }),
-    !calm,
-  );
   const currentRango = currentAndNextRangos().current;
   const [labels, setLabels] = useState(true);
   const fit = Math.min(size.width / layout.width, size.height / layout.height);
@@ -118,6 +99,21 @@ export function KitchenScene({
   // Las etiquetas HTML se contra-escalan para quedar siempre legibles (como en Carman),
   // con tope para que no tapen la escena cuando el mundo se achica mucho.
   const labelScale = Math.min(1.6, Math.max(1, 1 / (fit * zoom)));
+
+  // Las personas se paran entre las cajas de su mesa, sin quedar justo delante de una.
+  const crateCenters = useMemo(
+    () =>
+      [...positions.values()].flat().filter((p) => p.kind === "crate").map((p) => ({ x: p.x + CRATE_W / 2, y: p.y })),
+    [positions],
+  );
+  const crew = useCrew(
+    crewGroups(layout, {
+      pending: buckets.pending.length,
+      production: buckets.production.length,
+      dispatch: buckets.ready_dispatch.length,
+    }).map((g) => crewStations(g, crateCenters, CREW_CLEARANCE)),
+    !calm,
+  );
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
