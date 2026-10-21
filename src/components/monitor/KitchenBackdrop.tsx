@@ -56,15 +56,10 @@ export function KitchenBackdrop({ calm }: { calm: boolean }) {
         </g>
       ))}
 
-      {/* Cartel principal */}
+      {/* Cartel con el logo real */}
       <g>
-        <rect x="56" y="40" width="430" height="100" rx="20" fill="#fff" stroke="#f0cfd0" />
-        <rect x="56" y="40" width="430" height="100" rx="20" fill="#fde7e7" opacity="0.5" />
-        <circle cx="104" cy="90" r="24" fill="#f6c3cb" />
-        <path d="M92 84 h24 l-3 18 h-18 z" fill="#fff" />
-        <circle cx="104" cy="80" r="9" fill="#e78a9a" />
-        <text x="144" y="86" fill="#d45a78" fontFamily="Georgia, serif" fontSize="34" fontWeight="700">Postres Tammy</text>
-        <text x="146" y="114" fill="#b07a82" fontFamily="sans-serif" fontSize="12" letterSpacing="3">UN MUNDO MÁS DULCE</text>
+        <rect x="40" y="28" width="360" height="124" rx="22" fill="#fff" stroke="#f0cfd0" />
+        <image href="/brand/logo-tammy.png" x="56" y="36" width="328" height="110" />
       </g>
 
       {/* Pizarra de pedidos (ambiente izquierdo) */}

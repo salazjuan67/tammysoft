@@ -43,11 +43,8 @@ export function MonitorHeader({
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
       <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-pink-200 to-rose-300 text-xl shadow-sm">🧁</div>
-        <div>
-          <p className="font-serif text-xl font-semibold leading-none text-[#d45a78]">Tammy Ops</p>
-          <p className="label-caps mt-1">Centro de control del obrador</p>
-        </div>
+        <img src="/brand/logo-tammy.png" alt="Postres Tammy" className="h-12 w-auto" />
+        <p className="label-caps hidden sm:block">Centro de control del obrador</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {demo && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">MODO DEMO</span>}

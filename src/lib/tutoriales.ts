@@ -101,6 +101,7 @@ export const TUTORIALES: TutorialPantalla[] = [
         pasos: [
           "Las tarjetas de arriba filtran la escena (pendiente, producción, heladera, despacho, entregados, alertas).",
           "Tocá una bandeja para ver cliente, productos y ubicación.",
+          "Producción agranda solo esa sala. Minimizar alertas deja el obrador a todo el ancho.",
           "Despacho no es un estado del sistema: agrupa pedidos ya en heladera cuyo horario es el actual o el siguiente.",
         ],
       },

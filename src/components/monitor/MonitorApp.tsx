@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, LayoutGrid, List as ListIcon, Snowflake, X } from "lucide-react";
+import { Search, LayoutGrid, List as ListIcon, Snowflake, X, ChefHat, AlertTriangle, ChevronsRight } from "lucide-react";
 import { fechaKey } from "@/lib/monitor/time";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import type { ZoneId } from "@/lib/monitor/layout";
@@ -23,7 +23,9 @@ export function MonitorApp() {
   const demo = search.get("demo") === "1" && process.env.NODE_ENV !== "production";
   const [fecha, setFecha] = useState(fechaKey());
   const [filter, setFilter] = useState<MonitorFilter>("all");
-  const [view, setView] = useState<"scene" | "list">("scene");
+  const [view, setView] = useState<"scene" | "list" | "production">("scene");
+  // En la vista Producción las alertas arrancan minimizadas; se abre sin tocar la preferencia guardada.
+  const [prodAlerts, setProdAlerts] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -93,6 +95,8 @@ export function MonitorApp() {
     setTv(true);
   }
 
+  const showPanel = view === "production" ? prodAlerts : !panelOff;
+
   const sceneOrders = snapshot
     ? q
       ? snapshot.orders.filter((o) => `${o.code} ${o.customerName} ${o.endCustomerName ?? ""}`.toLowerCase().includes(q))
@@ -110,11 +114,11 @@ export function MonitorApp() {
         tv={tv}
         calm={calm}
         sidebarOff={sidebarOff || tv}
-        panelOff={panelOff}
+        panelOff={view === "production" ? !prodAlerts : panelOff}
         onTv={() => setTv((v) => !v)}
         onCalm={() => setCalm((v) => !v)}
         onSidebar={toggleSidebar}
-        onPanel={togglePanel}
+        onPanel={() => (view === "production" ? setProdAlerts((v) => !v) : togglePanel())}
         onFullscreen={fullscreen}
       />
       {snapshot && <MonitorKpiBar kpis={snapshot.kpis} filter={filter} onFilter={setFilter} />}
@@ -171,6 +175,7 @@ export function MonitorApp() {
 
             <div className="glass flex items-center rounded-xl p-1">
               <Seg active={view === "scene"} onClick={() => setView("scene")} icon={<LayoutGrid className="h-3.5 w-3.5" />}>Escena</Seg>
+              <Seg active={view === "production"} onClick={() => { setProdAlerts(false); setView("production"); }} icon={<ChefHat className="h-3.5 w-3.5" />}>Producción</Seg>
               <Seg active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="h-3.5 w-3.5" />}>Lista</Seg>
             </div>
             <div className="glass flex items-center rounded-xl p-1">
@@ -191,13 +196,15 @@ export function MonitorApp() {
             />
           ) : (
             <KitchenScene
-              orders={sceneOrders}
-              filter={filter}
+              key={view}
+              orders={view === "production" ? sceneOrders.filter((o) => o.status === "production") : sceneOrders}
+              filter={view === "production" ? "production" : filter}
               alertIds={alertIds}
               selectedId={selectedId}
               tv={tv}
               calm={calm}
               entering={diff.entered}
+              focusProduction={view === "production"}
               onSelect={locate}
               onOverflow={onOverflow}
             />
@@ -207,13 +214,30 @@ export function MonitorApp() {
           )}
         </div>
 
-        {snapshot && panelOff && selected && (
+        {snapshot && !showPanel && (
+          <button
+            type="button"
+            onClick={() => (view === "production" ? setProdAlerts(true) : togglePanel())}
+            className="glass absolute right-3 top-14 z-20 hidden items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-[#6f5750] hover:bg-rose-50 lg:flex"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-[#d9453d]" />
+            Alertas{snapshot.alerts.length ? ` · ${snapshot.alerts.length}` : ""}
+          </button>
+        )}
+        {snapshot && !showPanel && selected && (
           <div className="absolute bottom-3 right-5 z-30 hidden w-[340px] lg:block" style={{ height: "min(78dvh, 720px)" }}>
             <OrderDetailDrawer order={selected} tv={tv} alert={alertIds.has(selected.id)} onClose={() => setSelectedId(null)} />
           </div>
         )}
-        {snapshot && !panelOff && (
+        {snapshot && showPanel && (
           <div className="hidden w-[340px] shrink-0 flex-col gap-3 lg:flex">
+            <button
+              type="button"
+              onClick={() => (view === "production" ? setProdAlerts(false) : togglePanel())}
+              className="glass flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-semibold text-[#6f5750] hover:bg-rose-50"
+            >
+              <ChevronsRight className="h-3.5 w-3.5" /> Minimizar alertas
+            </button>
             {selected ? (
               <>
                 <div className="min-h-0 flex-1">

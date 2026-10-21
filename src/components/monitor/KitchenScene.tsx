@@ -17,6 +17,20 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
   delivered: CheckCircle2,
 };
 
+/** Encuadre de la sala de producción: centro del ambiente y zoom para llenar la pantalla. */
+const PRODUCTION_FRAME = { cx: 1000, cy: 430, zoom: 2.6 };
+
+function productionCamera(fit: number) {
+  const scale = fit * PRODUCTION_FRAME.zoom;
+  return {
+    zoom: PRODUCTION_FRAME.zoom,
+    pan: {
+      x: -(PRODUCTION_FRAME.cx - WORLD.width / 2) * scale,
+      y: -(PRODUCTION_FRAME.cy - WORLD.height / 2) * scale,
+    },
+  };
+}
+
 const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
   pending: { x: 96, y: 440 },
   production: { x: 590, y: 198 },
@@ -33,6 +47,7 @@ export function KitchenScene({
   tv,
   calm,
   entering,
+  focusProduction,
   onSelect,
   onOverflow,
 }: {
@@ -43,18 +58,28 @@ export function KitchenScene({
   tv: boolean;
   calm: boolean;
   entering?: string[];
+  /** Encuadra solo la sala de producción y oculta el resto de los pedidos. */
+  focusProduction?: boolean;
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
   const { positions, buckets, perFridge } = useMemo(() => assignSlots(orders), [orders]);
   const currentRango = currentAndNextRangos().current;
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [labels, setLabels] = useState(true);
   const [fit, setFit] = useState(1);
   const [dragging, setDragging] = useState(false);
+  // null = cámara automática (plano general, o la sala de producción si está enfocada).
+  const [override, setOverride] = useState<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  const auto = focusProduction ? productionCamera(fit) : { zoom: 1, pan: { x: 0, y: 0 } };
+  const zoom = override?.zoom ?? auto.zoom;
+  const pan = override?.pan ?? auto.pan;
+
+  function currentCam() {
+    return override ?? auto;
+  }
 
   useEffect(() => {
     const el = box.current;
@@ -73,7 +98,8 @@ export function KitchenScene({
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
-    setZoom((z) => Math.min(2.2, Math.max(0.7, z + (e.deltaY > 0 ? -0.08 : 0.08))));
+    const base = currentCam();
+    setOverride({ ...base, zoom: Math.min(2.6, Math.max(0.7, base.zoom + (e.deltaY > 0 ? -0.08 : 0.08))) });
   }
 
   function isDimmed(order: MonitorOrder) {
@@ -91,12 +117,14 @@ export function KitchenScene({
       onWheel={onWheel}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
-        drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+        const base = currentCam();
+        drag.current = { x: e.clientX, y: e.clientY, px: base.pan.x, py: base.pan.y };
         setDragging(true);
       }}
       onPointerMove={(e) => {
         if (!drag.current) return;
-        setPan({ x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) });
+        const base = currentCam();
+        setOverride({ zoom: base.zoom, pan: { x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) } });
       }}
       onPointerUp={() => { drag.current = null; setDragging(false); }}
       onPointerLeave={() => { drag.current = null; setDragging(false); }}
@@ -114,7 +142,7 @@ export function KitchenScene({
         <KitchenBackdrop calm={calm} />
 
         <div className="pointer-events-none absolute inset-0">
-          {(Object.keys(ZONES) as ZoneId[]).map((zone) => {
+          {(Object.keys(ZONES) as ZoneId[]).filter((zone) => !focusProduction || zone === "production").map((zone) => {
             const Icon = ZONE_ICON[zone];
             const meta = STATUS_META[zone];
             const count = buckets[zone].length;
@@ -139,7 +167,7 @@ export function KitchenScene({
             );
           })}
 
-          {FRIDGE.xs.map((fx, i) => {
+          {!focusProduction && FRIDGE.xs.map((fx, i) => {
             const list = perFridge[i];
             const units = list.reduce((s, o) => s + o.unitsOrdered, 0);
             return (
@@ -158,9 +186,11 @@ export function KitchenScene({
           {orders.flatMap((order, i) => {
             const slots = positions.get(order.id);
             if (!slots) return [];
+            const visible = focusProduction ? slots.filter((slot) => slot.zone === "production") : slots;
+            if (visible.length === 0) return [];
             const dimmed = isDimmed(order);
             const isEntering = entering?.includes(order.id);
-            return slots.map((slot, s) => (
+            return visible.map((slot, s) => (
               <OrderChip
                 // Clave estable por pedido: al cambiar de sala, la caja se desliza en vez de remontarse.
                 key={s === 0 ? order.id : `${order.id}:${slot.zone}`}
@@ -185,10 +215,16 @@ export function KitchenScene({
         </div>
       </div>
 
+      {focusProduction && orders.length === 0 && (
+        <div className="glass absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-2xl px-5 py-3 text-sm text-[#6f5750]">
+          No hay pedidos en producción para esta fecha
+        </div>
+      )}
+
       <div className="glass absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl p-1">
-        <Ctrl label="Alejar" onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))}><ZoomOut className="h-4 w-4" /></Ctrl>
-        <Ctrl label="Acercar" onClick={() => setZoom((z) => Math.min(2.2, z + 0.1))}><ZoomIn className="h-4 w-4" /></Ctrl>
-        <Ctrl label="Centrar" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Crosshair className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Alejar" onClick={() => { const base = currentCam(); setOverride({ ...base, zoom: Math.max(0.7, base.zoom - 0.1) }); }}><ZoomOut className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Acercar" onClick={() => { const base = currentCam(); setOverride({ ...base, zoom: Math.min(2.6, base.zoom + 0.1) }); }}><ZoomIn className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Centrar" onClick={() => setOverride(null)}><Crosshair className="h-4 w-4" /></Ctrl>
         <Ctrl label="Etiquetas" active={labels} onClick={() => setLabels((v) => !v)}><Tag className="h-4 w-4" /></Ctrl>
       </div>
     </div>
