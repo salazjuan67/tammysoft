@@ -1,27 +1,98 @@
-import { FRIDGE, WORLD } from "@/lib/monitor/layout";
+import { WALL_Y, type SceneLayout } from "@/lib/monitor/layout";
 import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 
-const W = WORLD.width;
-const H = WORLD.height;
-const WALL_Y = 262;
-const PARTITIONS = [520, 1385];
+export function KitchenBackdrop({
+  calm,
+  layout,
+}: {
+  calm: boolean;
+  layout: SceneLayout;
+}) {
+  const {
+    width: W,
+    height: H,
+    rooms,
+    fridge,
+    zones,
+    coldSplitX,
+    coldFloorY,
+  } = layout;
+  const [, a] = rooms.pending;
+  const [, b] = rooms.production;
+  const partitions = [a, b];
+  const prodW = b - a;
+  const prodTableW = Math.max(300, prodW - 120 - 130 * 0.72);
+  const shelfCount = Math.max(1, Math.floor((prodW - 300) / 300));
+  const pendingTableW = Math.max(220, a - 110 - 150 * 0.72);
+  const pizarraW = Math.min(300, a - 140);
+  const dispatchTableW = Math.max(200, coldSplitX - b - 70 - 110 * 0.72);
+  const deliveredTableW = Math.max(200, W - coldSplitX - 60 - 110 * 0.72);
+  const lowerTableY = zones.ready_dispatch.y + 40;
+  // En la vista Producción los otros ambientes quedan como bordes angostos y no llevan mobiliario.
+  const showPending = a >= 400;
+  const showCold = W - b >= 700;
 
-export function KitchenBackdrop({ calm }: { calm: boolean }) {
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" preserveAspectRatio="xMidYMid meet" aria-hidden>
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
+      className="h-full w-full"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden
+    >
       <defs>
         <pattern id="tile" width="48" height="28" patternUnits="userSpaceOnUse">
-          <path d="M24 0 L48 14 L24 28 L0 14 Z" fill="#f7e7da" stroke="#eed7c8" strokeWidth="1" />
+          <path
+            d="M24 0 L48 14 L24 28 L0 14 Z"
+            fill="#f7e7da"
+            stroke="#eed7c8"
+            strokeWidth="1"
+          />
         </pattern>
-        <pattern id="tileProd" width="48" height="28" patternUnits="userSpaceOnUse">
-          <path d="M24 0 L48 14 L24 28 L0 14 Z" fill="#fbeee6" stroke="#f0dbcf" strokeWidth="1" />
+        <pattern
+          id="tileProd"
+          width="48"
+          height="28"
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d="M24 0 L48 14 L24 28 L0 14 Z"
+            fill="#fbeee6"
+            stroke="#f0dbcf"
+            strokeWidth="1"
+          />
         </pattern>
-        <pattern id="tileCold" width="48" height="28" patternUnits="userSpaceOnUse">
-          <path d="M24 0 L48 14 L24 28 L0 14 Z" fill="#eef5f7" stroke="#dbe9ee" strokeWidth="1" />
+        <pattern
+          id="tileCold"
+          width="48"
+          height="28"
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d="M24 0 L48 14 L24 28 L0 14 Z"
+            fill="#eef5f7"
+            stroke="#dbe9ee"
+            strokeWidth="1"
+          />
         </pattern>
-        <pattern id="wallTile" width="26" height="16" patternUnits="userSpaceOnUse">
+        <pattern
+          id="wallTile"
+          width="26"
+          height="16"
+          patternUnits="userSpaceOnUse"
+        >
           <rect width="26" height="16" fill="#fbe3e3" />
-          <rect x="0.5" y="0.5" width="25" height="15" rx="2" fill="#fde9e9" stroke="#f3d1d3" strokeWidth="0.8" />
+          <rect
+            x="0.5"
+            y="0.5"
+            width="25"
+            height="15"
+            rx="2"
+            fill="#fde9e9"
+            stroke="#f3d1d3"
+            strokeWidth="0.8"
+          />
         </pattern>
         <linearGradient id="backwall" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fff1ee" />
@@ -39,93 +110,297 @@ export function KitchenBackdrop({ calm }: { calm: boolean }) {
       <rect x="0" y={WALL_Y - 4} width={W} height="6" fill="#e8bfc0" />
 
       {/* Pisos por ambiente */}
-      <rect x="0" y={WALL_Y} width={PARTITIONS[0]} height={H - WALL_Y} fill="url(#tile)" />
-      <rect x={PARTITIONS[0]} y={WALL_Y} width={PARTITIONS[1] - PARTITIONS[0]} height={H - WALL_Y} fill="url(#tileProd)" />
-      <rect x={PARTITIONS[1]} y={WALL_Y} width={W - PARTITIONS[1]} height={H - WALL_Y} fill="url(#tileCold)" />
+      <rect x="0" y={WALL_Y} width={a} height={H - WALL_Y} fill="url(#tile)" />
+      <rect
+        x={a}
+        y={WALL_Y}
+        width={prodW}
+        height={H - WALL_Y}
+        fill="url(#tileProd)"
+      />
+      <rect
+        x={b}
+        y={WALL_Y}
+        width={W - b}
+        height={H - WALL_Y}
+        fill="url(#tileCold)"
+      />
       <rect width={W} height={H} fill="url(#light)" />
 
       {/* Tabiques bajos con vano de paso */}
-      {PARTITIONS.map((px) => (
-        <g key={px}>
+      {partitions.map((px, i) => (
+        <g key={i}>
           <rect x={px - 9} y={150} width="18" height={H - 150} fill="#f3d6d2" />
           <rect x={px - 9} y={150} width="6" height={H - 150} fill="#fff4f1" />
           <rect x={px + 3} y={150} width="6" height={H - 150} fill="#e4bcb8" />
-          <rect x={px - 11} y={760} width="22" height="180" fill="url(#tile)" opacity="0.9" />
+          <rect
+            x={px - 11}
+            y={760}
+            width="22"
+            height="180"
+            fill="url(#tile)"
+            opacity="0.9"
+          />
           <rect x={px - 11} y={756} width="22" height="4" fill="#d9a9a6" />
           <rect x={px - 11} y={940} width="22" height="4" fill="#d9a9a6" />
         </g>
       ))}
 
-      {/* Cartel con el logo real */}
-      <g>
-        <rect x="40" y="28" width="360" height="124" rx="22" fill="#fff" stroke="#f0cfd0" />
-        <image href="/brand/logo-tammy.png" x="56" y="36" width="328" height="110" />
-      </g>
+      {showPending && (
+        <>
+          {/* Cartel con el logo real */}
+          <g>
+            <rect
+              x="40"
+              y="28"
+              width="360"
+              height="124"
+              rx="22"
+              fill="#fff"
+              stroke="#f0cfd0"
+            />
+            <image
+              href="/brand/logo-tammy.png"
+              x="56"
+              y="36"
+              width="328"
+              height="110"
+            />
+          </g>
 
-      {/* Pizarra de pedidos (ambiente izquierdo) */}
-      <g>
-        <rect x="120" y="296" width="300" height="130" rx="10" fill="#4a3b36" stroke="#8a6b5e" strokeWidth="6" />
-        <text x="140" y="336" fill="#f7e6d8" fontFamily="Georgia, serif" fontSize="22" fontStyle="italic">Pedidos del día</text>
-        {[0, 1, 2].map((i) => (
-          <line key={i} x1="140" y1={358 + i * 20} x2={300 + (i % 2) * 60} y2={358 + i * 20} stroke="#8a7a72" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 8" />
-        ))}
-      </g>
+          {/* Pizarra de pedidos (ambiente izquierdo) */}
+          <g>
+            <rect
+              x="100"
+              y="282"
+              width={pizarraW}
+              height="100"
+              rx="10"
+              fill="#4a3b36"
+              stroke="#8a6b5e"
+              strokeWidth="6"
+            />
+            <text
+              x="120"
+              y="320"
+              fill="#f7e6d8"
+              fontFamily="Georgia, serif"
+              fontSize="22"
+              fontStyle="italic"
+            >
+              Pedidos del día
+            </text>
+            {[0, 1].map((i) => (
+              <line
+                key={i}
+                x1="120"
+                y1={342 + i * 20}
+                x2={100 + pizarraW * (0.55 + (i % 2) * 0.2)}
+                y2={342 + i * 20}
+                stroke="#8a7a72"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray="6 8"
+              />
+            ))}
+          </g>
+
+          {/* Mostrador de pedidos por hacer */}
+          <IsoTable
+            x={50}
+            y={560}
+            w={pendingTableW}
+            d={150}
+            h={42}
+            top="#f6dcc0"
+            left="#c99a70"
+            right="#e6c29c"
+          />
+          <IsoTable
+            x={50}
+            y={860}
+            w={pendingTableW}
+            d={150}
+            h={42}
+            top="#f6dcc0"
+            left="#c99a70"
+            right="#e6c29c"
+          />
+        </>
+      )}
 
       {/* Sala de producción: estantes, placa, mesas, batidora */}
-      <IsoShelf x={600} y={46} />
-      <IsoShelf x={900} y={46} tint="#c9b8e8" />
-      <g>
-        <rect x="1190" y="90" width="170" height="40" rx="8" fill="#fff" stroke="#f0cfd0" />
-        <text x="1275" y="116" textAnchor="middle" fill="#c45b72" fontFamily="sans-serif" fontSize="13" fontWeight="700" letterSpacing="2">PRODUCCIÓN</text>
-      </g>
-      <IsoTable x={580} y={300} w={620} d={130} h={40} top="#e8e4e0" left="#b9b1aa" right="#d9d2cb" edge="#a39b94" />
-      <IsoTable x={580} y={560} w={620} d={130} h={40} top="#f6dcc0" left="#c99a70" right="#e6c29c" />
-      <g className={calm ? "" : "tammy-ops-mixer"}>
-        <rect x="1220" y="214" width="86" height="22" rx="8" fill="#f2b8c4" />
-        <rect x="1248" y="180" width="28" height="44" rx="8" fill="#e38ea1" />
-        <circle cx="1262" cy="252" r="26" fill="#f7f1ea" stroke="#d6cbc0" strokeWidth="3" />
-      </g>
-      <g>
-        <ellipse cx="1300" cy="300" rx="30" ry="12" fill="#e9c2a8" />
-        <ellipse cx="1300" cy="290" rx="24" ry="14" fill="#f0a89a" />
-        <ellipse cx="1300" cy="280" rx="10" ry="4" fill="#fff" />
-        <g className={calm ? "" : "tammy-ops-steam"}>
-          <circle cx="1292" cy="266" r="4" fill="#fff" />
-          <circle cx="1306" cy="260" r="5" fill="#fff" />
-        </g>
-      </g>
-
-      {/* Mostrador de pedidos por hacer */}
-      <IsoTable x={90} y={580} w={330} d={150} h={42} top="#f6dcc0" left="#c99a70" right="#e6c29c" />
-      <g>
-        <ellipse cx="400" cy="560" rx="34" ry="13" fill="#5a3328" />
-        <ellipse cx="400" cy="548" rx="26" ry="14" fill="#3f241c" />
-        <ellipse cx="400" cy="540" rx="12" ry="5" fill="#f6dbe0" />
-      </g>
-
-      {/* Cámara fría: heladeras, mesas de despacho y entregas */}
-      <g>
-        <rect x="1700" y="30" width="190" height="60" rx="12" fill="#dff1f8" stroke="#bcd8e2" />
-        <line x1="1795" y1="30" x2="1795" y2="90" stroke="#bcd8e2" strokeWidth="3" />
-        <rect x="2080" y="40" width="100" height="36" rx="8" fill="#e9e3dd" stroke="#cfc6bf" />
-        <g className={calm ? "" : "tammy-ops-glow"}>
-          <circle cx="2098" cy="58" r="4" fill="#5cc27a" />
-        </g>
-      </g>
-      {FRIDGE.xs.map((fx) => (
-        <Vitrina key={fx} x={fx} y={FRIDGE.y} w={FRIDGE.w} h={FRIDGE.h} headH={FRIDGE.headH} glow={!calm} />
+      {Array.from({ length: shelfCount }, (_, i) => (
+        <IsoShelf
+          key={i}
+          x={a + 80 + i * 300}
+          y={46}
+          tint={i % 2 ? "#c9b8e8" : undefined}
+        />
       ))}
-      <IsoTable x={1430} y={860} w={320} d={110} h={34} top="#e6d2f4" left="#b894d0" right="#d8c0ea" edge="#a27fc0" />
-      <IsoTable x={1800} y={860} w={320} d={110} h={34} top="#d7f0e0" left="#8fc9a8" right="#c5e8d2" edge="#7cb894" />
       <g>
-        <rect x="2110" y="940" width="46" height="60" rx="6" fill="#efe9e4" stroke="#d3cbc3" />
-        <rect x="2118" y="947" width="30" height="20" rx="3" fill="#cfe6ee" />
-        <rect x="2118" y="973" width="30" height="20" rx="3" fill="#e4dcd4" />
+        <rect
+          x={b - 200}
+          y="90"
+          width="170"
+          height="40"
+          rx="8"
+          fill="#fff"
+          stroke="#f0cfd0"
+        />
+        <text
+          x={b - 115}
+          y="116"
+          textAnchor="middle"
+          fill="#c45b72"
+          fontFamily="sans-serif"
+          fontSize="13"
+          fontWeight="700"
+          letterSpacing="2"
+        >
+          PRODUCCIÓN
+        </text>
+      </g>
+      <IsoTable
+        x={a + 60}
+        y={340}
+        w={prodTableW}
+        d={130}
+        h={40}
+        top="#e8e4e0"
+        left="#b9b1aa"
+        right="#d9d2cb"
+        edge="#a39b94"
+      />
+      <IsoTable
+        x={a + 60}
+        y={620}
+        w={prodTableW}
+        d={130}
+        h={40}
+        top="#f6dcc0"
+        left="#c99a70"
+        right="#e6c29c"
+      />
+      <IsoTable
+        x={a + 60}
+        y={900}
+        w={prodTableW}
+        d={130}
+        h={40}
+        top="#e8e4e0"
+        left="#b9b1aa"
+        right="#d9d2cb"
+        edge="#a39b94"
+      />
+      <g className={calm ? "" : "tammy-ops-mixer"}>
+        <rect
+          x={b - 165}
+          y="214"
+          width="86"
+          height="22"
+          rx="8"
+          fill="#f2b8c4"
+        />
+        <rect
+          x={b - 137}
+          y="180"
+          width="28"
+          height="44"
+          rx="8"
+          fill="#e38ea1"
+        />
+        <circle
+          cx={b - 123}
+          cy="252"
+          r="26"
+          fill="#f7f1ea"
+          stroke="#d6cbc0"
+          strokeWidth="3"
+        />
       </g>
 
-      <IsoPlant x={60} y={1110} />
-      <IsoPlant x={1330} y={1140} />
-      <IsoPlant x={2150} y={1110} />
+      {showCold && (
+        <>
+          {/* Cámara fría: heladeras, mesas de despacho y entregas */}
+          <g>
+            <rect
+              x={W - 330}
+              y="30"
+              width="190"
+              height="60"
+              rx="12"
+              fill="#dff1f8"
+              stroke="#bcd8e2"
+            />
+            <line
+              x1={W - 235}
+              y1="30"
+              x2={W - 235}
+              y2="90"
+              stroke="#bcd8e2"
+              strokeWidth="3"
+            />
+            <rect
+              x={W - 120}
+              y="40"
+              width="100"
+              height="36"
+              rx="8"
+              fill="#e9e3dd"
+              stroke="#cfc6bf"
+            />
+            <g className={calm ? "" : "tammy-ops-glow"}>
+              <circle cx={W - 102} cy="58" r="4" fill="#5cc27a" />
+            </g>
+          </g>
+          {fridge.xs.map((fx) => (
+            <Vitrina
+              key={fx}
+              x={fx}
+              y={fridge.y}
+              w={fridge.w}
+              h={fridge.h}
+              headH={fridge.headH}
+              glow={!calm}
+            />
+          ))}
+          <rect
+            x={b + 20}
+            y={coldFloorY - 18}
+            width={W - b - 40}
+            height="4"
+            rx="2"
+            fill="#cfe2e8"
+          />
+          <IsoTable
+            x={b + 40}
+            y={lowerTableY}
+            w={dispatchTableW}
+            d={110}
+            h={34}
+            top="#e6d2f4"
+            left="#b894d0"
+            right="#d8c0ea"
+            edge="#a27fc0"
+          />
+          <IsoTable
+            x={coldSplitX + 30}
+            y={lowerTableY}
+            w={deliveredTableW}
+            d={110}
+            h={34}
+            top="#d7f0e0"
+            left="#8fc9a8"
+            right="#c5e8d2"
+            edge="#7cb894"
+          />
+        </>
+      )}
+
+      <IsoPlant x={30} y={1130} />
+      <IsoPlant x={b - 40} y={1140} />
+      <IsoPlant x={W - 40} y={1130} />
     </svg>
   );
 }

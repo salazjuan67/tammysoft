@@ -2,7 +2,7 @@
 
 import type { MonitorOrder } from "@/lib/monitor/types";
 import { sceneStatus } from "@/lib/monitor/selectors";
-import { FRIDGE, type SlotPos } from "@/lib/monitor/layout";
+import { type SlotPos } from "@/lib/monitor/layout";
 import { CRATE_W, crateHeight, IsoCrate } from "./Iso";
 import { ALERT_COLOR, STATUS_META } from "./ui";
 
@@ -65,7 +65,7 @@ export function OrderChip({
           type="button"
           onClick={() => onSelect("__overflow_" + slot.zone)}
           className="shelf-tag shelf-tag--more absolute"
-          style={{ left: slot.x, top: slot.y, width: FRIDGE.w - 20 }}
+          style={{ left: slot.x, top: slot.y, width: slot.w ?? 230 }}
         >
           {label} en esta heladera
         </button>
@@ -91,7 +91,7 @@ export function OrderChip({
         onClick={() => onSelect(order.id)}
         title={`${order.code} · ${full} · ${order.unitsOrdered} potes`}
         className={`tammy-ops-chip shelf-tag absolute text-left ${dimmed ? "opacity-25" : "opacity-100"}`}
-        style={{ left: slot.x, top: slot.y, width: FRIDGE.w - 20, zIndex: selected ? 900 : Math.round(slot.y / 4), ["--accent" as string]: accent, ...enterStyle }}
+        style={{ left: slot.x, top: slot.y, width: slot.w ?? 230, zIndex: selected ? 900 : Math.round(slot.y / 4), ["--accent" as string]: accent, ...enterStyle }}
       >
         <span className="shelf-tag__shelf" title="Estante">{slot.shelf}</span>
         <span className="shelf-tag__plate">{order.code}</span>

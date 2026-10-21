@@ -2,37 +2,45 @@ import type { MonitorOrder } from "./types";
 import { sceneStatus } from "./selectors";
 
 /**
- * Mundo 2200×1200 dividido en tres ambientes por tabiques:
- *  - Izquierda (x 0–520): mostrador de pedidos por hacer.
- *  - Centro (x 520–1385): sala de producción, la más amplia porque es la que más se carga.
- *  - Derecha (x 1385–2200): cámara con tres vitrinas (heladeras) arriba y, abajo, despacho y entregados.
+ * El obrador se arma según la pantalla y la carga del día:
+ *  - El alto del mundo es fijo (1200) y el ancho sigue la proporción del contenedor,
+ *    así la escena ocupa todo el ancho y todo el alto sin franjas vacías.
+ *  - Tres ambientes separados por tabiques: por hacer, producción y cámara fría
+ *    (heladeras arriba, despacho y entregados abajo). Cada uno tiene un ancho mínimo
+ *    y el resto se reparte en proporción a la cantidad de pedidos que tiene.
  */
-export const WORLD = { width: 2200, height: 1200 };
+export const WORLD_HEIGHT = 1200;
+export const WALL_Y = 262;
+const FLOOR_BOTTOM = 1060;
 
 export type ZoneId = "pending" | "production" | "stored" | "ready_dispatch" | "delivered";
 
-export const ZONES: Record<ZoneId, { x: number; y: number; label: string; cols: number; cap: number; right: number; bottom: number }> = {
-  pending: { x: 70, y: 470, label: "Por hacer", cols: 2, cap: 36, right: 490, bottom: 1160 },
-  production: { x: 580, y: 280, label: "Producción", cols: 4, cap: 60, right: 1340, bottom: 1160 },
-  stored: { x: 1410, y: 150, label: "Heladeras", cols: 3, cap: 48, right: 2180, bottom: 760 },
-  ready_dispatch: { x: 1430, y: 820, label: "Despacho", cols: 2, cap: 24, right: 1760, bottom: 1160 },
-  delivered: { x: 1800, y: 820, label: "Entregados hoy", cols: 2, cap: 30, right: 2160, bottom: 1160 },
+export const ZONE_LABEL: Record<ZoneId, string> = {
+  pending: "Por hacer",
+  production: "Producción",
+  stored: "Heladeras",
+  ready_dispatch: "Despacho",
+  delivered: "Entregados hoy",
 };
 
-/** Geometría de las vitrinas: cada heladera lista sus pedidos como renglones ordenados por estante. */
-export const FRIDGE = {
-  w: 250,
-  h: 46 + 16 * 30 + 16,
-  headH: 46,
-  lineH: 30,
-  lines: 16,
-  xs: [1410, 1670, 1930],
-  y: 150,
+export type ZoneBox = { x: number; y: number; right: number; bottom: number };
+
+export type SceneLayout = {
+  width: number;
+  height: number;
+  /** Límites x de cada ambiente: [inicio, fin]. */
+  rooms: { pending: [number, number]; production: [number, number]; cold: [number, number] };
+  zones: Record<Exclude<ZoneId, "stored">, ZoneBox>;
+  tags: Record<ZoneId, { x: number; y: number }>;
+  fridge: { xs: number[]; y: number; w: number; h: number; headH: number; lineH: number; lines: number };
+  /** Separación vertical entre las heladeras y las mesas de despacho / entregados. */
+  coldSplitX: number;
+  coldFloorY: number;
 };
 
 /**
  * - `kind: "crate"`: caja isométrica sobre mesa/piso.
- * - `kind: "shelf"`: renglón dentro de una vitrina (ancho fijo FRIDGE.w - 20).
+ * - `kind: "shelf"`: renglón dentro de una vitrina (`w` = ancho del renglón).
  * `stagger` alterna la altura de la etiqueta entre columnas vecinas para que no se pisen.
  * `extra` acompaña a los marcadores de desborde ("+N").
  */
@@ -45,24 +53,14 @@ export type SlotPos = {
   stagger: boolean;
   extra?: number;
   shelf?: string;
+  w?: number;
 };
 
-// Reparte todas las cajas de la zona dentro del ambiente: si hay muchas, achica el paso
-// para que entren sin tapar la sala de al lado.
-function isoSpread(zone: ZoneId, index: number, total: number) {
-  const z = ZONES[zone];
-  const cols = zone === "pending" && total > 12 ? 3 : z.cols;
-  const rows = Math.max(1, Math.ceil(total / cols));
-  const colStep = Math.min(200, Math.max(128, (z.right - z.x) / Math.max(cols - 1, 1)));
-  const rowStep = Math.min(108, Math.max(62, (z.bottom - z.y) / Math.max(rows - 1, 1)));
-  const col = index % cols;
-  const row = Math.floor(index / cols);
-  return {
-    x: z.x + col * colStep - row * 14,
-    y: z.y + row * rowStep + col * 6,
-    stagger: col % 2 === 1,
-  };
-}
+const ROOM_MIN = { pending: 420, production: 640, cold: 860 };
+const CRATE_COL_MIN = 168;
+const CRATE_COL_MAX = 260;
+const CRATE_ROW_MIN = 64;
+const CRATE_ROW_MAX = 280;
 
 /** Índice 0–2 de la heladera dibujada; ids fuera de rango se agrupan en la tercera. */
 export function fridgeIndex(order: MonitorOrder, fallback = 0) {
@@ -99,7 +97,7 @@ function sortForShelf(a: MonitorOrder, b: MonitorOrder) {
   return sortForScene(a, b);
 }
 
-export function assignSlots(orders: MonitorOrder[]) {
+function bucketize(orders: MonitorOrder[]) {
   const buckets: Record<ZoneId, MonitorOrder[]> = {
     pending: [],
     production: [],
@@ -119,6 +117,130 @@ export function assignSlots(orders: MonitorOrder[]) {
       buckets[zone].push(order);
     }
   }
+  return buckets;
+}
+
+/** Reparte `extra` entre ambientes en proporción a su carga (con piso para que nadie quede en cero). */
+function share(extra: number, weights: number[]) {
+  const total = weights.reduce((s, w) => s + w, 0);
+  return weights.map((w) => (extra * w) / total);
+}
+
+export function computeLayout(
+  buckets: Record<ZoneId, MonitorOrder[]>,
+  aspect: number,
+  perFridgeMax: number,
+  focusProduction = false,
+): SceneLayout {
+  const height = WORLD_HEIGHT;
+  const minTotal = ROOM_MIN.pending + ROOM_MIN.production + ROOM_MIN.cold;
+  const width = Math.round(Math.min(5200, Math.max(minTotal, height * (Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9))));
+
+  let a: number;
+  let b: number;
+  if (focusProduction) {
+    // Vista Producción: la sala ocupa casi todo el mundo y los otros ambientes quedan como bordes.
+    a = 160;
+    b = width - 160;
+  } else {
+    const nPending = buckets.pending.length;
+    const nProd = buckets.production.length;
+    const nCold = Math.max(buckets.stored.length, buckets.ready_dispatch.length + buckets.delivered.length);
+    const [ePending, eProd] = share(width - minTotal, [0.6 + nPending, 1 + nProd, 0.8 + nCold]);
+    a = ROOM_MIN.pending + ePending;
+    b = a + ROOM_MIN.production + eProd;
+  }
+  const coldW = width - b;
+
+  const fridgeGap = 20;
+  const fridgeW = Math.min(440, Math.max(230, (coldW - 70 - fridgeGap * 2) / 3));
+  const fridgeStart = b + Math.max(36, (coldW - (fridgeW * 3 + fridgeGap * 2)) / 2);
+  const lineH = 30;
+  const lines = Math.min(16, Math.max(6, perFridgeMax));
+  const fridgeY = 150;
+  const headH = 46;
+  const fridgeH = headH + lines * lineH + 16;
+  const coldFloorY = fridgeY + fridgeH + 40;
+
+  const nDispatch = buckets.ready_dispatch.length;
+  const nDelivered = buckets.delivered.length;
+  const dispatchShare = Math.min(0.62, Math.max(0.38, (1 + nDispatch) / (2 + nDispatch + nDelivered)));
+  const coldSplitX = b + coldW * dispatchShare;
+  const lowerY = coldFloorY + 140;
+
+  return {
+    width,
+    height,
+    rooms: { pending: [0, a], production: [a, b], cold: [b, width] },
+    zones: {
+      pending: { x: 60, y: 540, right: a - 120, bottom: FLOOR_BOTTOM },
+      production: { x: a + 70, y: 330, right: b - 150, bottom: FLOOR_BOTTOM },
+      ready_dispatch: { x: b + 50, y: lowerY, right: coldSplitX - 130, bottom: FLOOR_BOTTOM },
+      delivered: { x: coldSplitX + 40, y: lowerY, right: width - 130, bottom: FLOOR_BOTTOM },
+    },
+    tags: {
+      pending: { x: 60, y: 410 },
+      production: { x: a + 60, y: 196 },
+      stored: { x: fridgeStart, y: 96 },
+      ready_dispatch: { x: b + 40, y: coldFloorY },
+      delivered: { x: coldSplitX + 30, y: coldFloorY },
+    },
+    fridge: {
+      xs: [0, 1, 2].map((i) => fridgeStart + i * (fridgeW + fridgeGap)),
+      y: fridgeY,
+      w: fridgeW,
+      h: fridgeH,
+      headH,
+      lineH,
+      lines,
+    },
+    coldSplitX,
+    coldFloorY,
+  };
+}
+
+/**
+ * Grilla de cajas que ocupa todo el ambiente: con pocos pedidos se separan para usar el ancho,
+ * con muchos se compacta hasta el mínimo legible y recién ahí aparece el "+N".
+ */
+function crateGrid(box: ZoneBox, total: number) {
+  const usableW = Math.max(0, box.right - box.x);
+  const usableH = Math.max(0, box.bottom - box.y);
+  const maxCols = Math.max(1, Math.floor(usableW / CRATE_COL_MIN) + 1);
+  const maxRows = Math.max(1, Math.floor(usableH / CRATE_ROW_MIN) + 1);
+  const cap = maxCols * maxRows;
+  const shown = Math.min(total, cap);
+  // Columnas y filas en la misma proporción que el ambiente, para repartir las cajas en toda la sala.
+  const ratio = usableW / 200 / Math.max(1, usableH / 150);
+  const balanced = Math.ceil(Math.sqrt(Math.max(1, shown) * ratio));
+  const cols = Math.max(1, Math.min(maxCols, Math.max(balanced, Math.ceil(shown / maxRows))));
+  const rows = Math.max(1, Math.ceil(shown / cols));
+  const colStep = cols > 1 ? Math.min(CRATE_COL_MAX, usableW / (cols - 1)) : 0;
+  const rowStep = rows > 1 ? Math.min(CRATE_ROW_MAX, Math.max(CRATE_ROW_MIN, usableH / (rows - 1))) : 0;
+  const offsetX = cols > 1 ? Math.max(0, (usableW - colStep * (cols - 1)) / 2) : Math.min(usableW / 2, 120);
+  return {
+    cap,
+    at(index: number) {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      return {
+        x: box.x + offsetX + col * colStep - row * 14,
+        y: box.y + row * rowStep + col * 6,
+        stagger: col % 2 === 1,
+      };
+    },
+  };
+}
+
+export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focusProduction = false) {
+  const buckets = bucketize(orders);
+
+  const perFridge: MonitorOrder[][] = [[], [], []];
+  buckets.stored.forEach((order, i) => perFridge[fridgeIndex(order, i)].push(order));
+  perFridge.forEach((list) => list.sort(sortForShelf));
+  const perFridgeMax = Math.max(0, ...perFridge.map((l) => l.length));
+
+  const layout = computeLayout(buckets, aspect, perFridgeMax, focusProduction);
 
   const positions = new Map<string, SlotPos[]>();
   const push = (id: string, pos: SlotPos) => {
@@ -128,36 +250,41 @@ export function assignSlots(orders: MonitorOrder[]) {
   };
   const overflowByZone: Partial<Record<ZoneId, number>> = {};
 
-  // Zonas con cajas isométricas.
-  (["pending", "production", "ready_dispatch", "delivered"] as ZoneId[]).forEach((zone) => {
-    const cap = ZONES[zone].cap;
+  (["pending", "production", "ready_dispatch", "delivered"] as const).forEach((zone) => {
     const list = [...buckets[zone]].sort(sortForScene);
-    const visible = Math.min(list.length, cap);
+    const grid = crateGrid(layout.zones[zone], list.length);
+    // Si no entran todos, la última celda queda para el "+N".
+    const visible = list.length > grid.cap ? grid.cap - 1 : list.length;
     list.forEach((order, i) => {
-      if (i < cap) {
-        push(order.id, { ...isoSpread(zone, i, visible), zone, kind: "crate", overflow: false });
-      } else if (i === cap) {
-        push(order.id, { ...isoSpread(zone, cap, visible), zone, kind: "crate", overflow: true, extra: list.length - cap });
+      if (i < visible) {
+        push(order.id, { ...grid.at(i), zone, kind: "crate", overflow: false });
+      } else if (i === visible) {
+        push(order.id, { ...grid.at(visible), zone, kind: "crate", overflow: true, extra: list.length - visible });
       }
     });
-    const extra = Math.max(0, list.length - cap);
-    if (extra) overflowByZone[zone] = extra;
+    if (list.length > visible) overflowByZone[zone] = list.length - visible;
   });
 
-  // Vitrinas: un renglón por pedido, agrupado por heladera y ordenado por estante.
-  const perFridge: MonitorOrder[][] = [[], [], []];
-  buckets.stored.forEach((order, i) => perFridge[fridgeIndex(order, i)].push(order));
+  const { fridge } = layout;
   let storedExtra = 0;
   perFridge.forEach((list, f) => {
-    list.sort(sortForShelf);
+    const visible = list.length > fridge.lines ? fridge.lines - 1 : list.length;
     list.forEach((order, k) => {
-      const base = { x: FRIDGE.xs[f] + 10, y: FRIDGE.y + FRIDGE.headH + k * FRIDGE.lineH, zone: "stored" as const, kind: "shelf" as const, stagger: false, shelf: shelfLabel(order) };
-      if (k < FRIDGE.lines) push(order.id, { ...base, overflow: false });
-      else if (k === FRIDGE.lines) push(order.id, { ...base, overflow: true, extra: list.length - FRIDGE.lines });
+      const base = {
+        x: fridge.xs[f] + 10,
+        y: fridge.y + fridge.headH + k * fridge.lineH,
+        zone: "stored" as const,
+        kind: "shelf" as const,
+        stagger: false,
+        shelf: shelfLabel(order),
+        w: fridge.w - 20,
+      };
+      if (k < visible) push(order.id, { ...base, overflow: false });
+      else if (k === visible) push(order.id, { ...base, overflow: true, extra: list.length - visible });
     });
-    storedExtra += Math.max(0, list.length - FRIDGE.lines);
+    storedExtra += list.length - visible;
   });
   if (storedExtra) overflowByZone.stored = storedExtra;
 
-  return { positions, overflowByZone, buckets, perFridge };
+  return { positions, overflowByZone, buckets, perFridge, layout };
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag } from "lucide-react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
-import { assignSlots, FRIDGE, WORLD, ZONES, type ZoneId } from "@/lib/monitor/layout";
+import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
 import { KitchenBackdrop } from "./KitchenBackdrop";
 import { OrderChip } from "./OrderChip";
@@ -17,27 +17,23 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
   delivered: CheckCircle2,
 };
 
-/** Encuadre de la sala de producción: centro del ambiente y zoom para llenar la pantalla. */
-const PRODUCTION_FRAME = { cx: 1000, cy: 430, zoom: 2.6 };
+const ZONE_ORDER: ZoneId[] = ["pending", "production", "stored", "ready_dispatch", "delivered"];
 
-function productionCamera(fit: number) {
-  const scale = fit * PRODUCTION_FRAME.zoom;
+/** Encuadra la sala de producción (desde el cartel hasta el piso) para que llene la pantalla. */
+function productionCamera(layout: SceneLayout, fit: number) {
+  const [x0, x1] = layout.rooms.production;
+  const top = 170;
+  const bottom = layout.height - 20;
+  const zoom = Math.min(2.6, layout.width / (x1 - x0 + 40), layout.height / (bottom - top));
+  const scale = fit * zoom;
   return {
-    zoom: PRODUCTION_FRAME.zoom,
+    zoom,
     pan: {
-      x: -(PRODUCTION_FRAME.cx - WORLD.width / 2) * scale,
-      y: -(PRODUCTION_FRAME.cy - WORLD.height / 2) * scale,
+      x: -((x0 + x1) / 2 - layout.width / 2) * scale,
+      y: -((top + bottom) / 2 - layout.height / 2) * scale,
     },
   };
 }
-
-const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
-  pending: { x: 96, y: 440 },
-  production: { x: 590, y: 198 },
-  stored: { x: 1410, y: 104 },
-  ready_dispatch: { x: 1430, y: 760 },
-  delivered: { x: 1800, y: 760 },
-};
 
 export function KitchenScene({
   orders,
@@ -63,17 +59,20 @@ export function KitchenScene({
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
-  const { positions, buckets, perFridge } = useMemo(() => assignSlots(orders), [orders]);
+  const [size, setSize] = useState({ width: 1600, height: 900 });
+  // Redondeado para no recalcular el armado en cada píxel de un resize.
+  const aspect = Math.round((size.width / Math.max(1, size.height)) * 20) / 20;
+  const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focusProduction), [orders, aspect, focusProduction]);
   const currentRango = currentAndNextRangos().current;
   const [labels, setLabels] = useState(true);
-  const [fit, setFit] = useState(1);
+  const fit = Math.min(size.width / layout.width, size.height / layout.height);
   const [dragging, setDragging] = useState(false);
   // null = cámara automática (plano general, o la sala de producción si está enfocada).
   const [override, setOverride] = useState<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
 
-  const auto = focusProduction ? productionCamera(fit) : { zoom: 1, pan: { x: 0, y: 0 } };
+  const auto = focusProduction ? productionCamera(layout, fit) : { zoom: 1, pan: { x: 0, y: 0 } };
   const zoom = override?.zoom ?? auto.zoom;
   const pan = override?.pan ?? auto.pan;
 
@@ -86,7 +85,7 @@ export function KitchenScene({
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      setFit(Math.min(width / WORLD.width, height / WORLD.height));
+      if (width > 0 && height > 0) setSize({ width, height });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -132,17 +131,17 @@ export function KitchenScene({
       <div
         className="absolute left-1/2 top-1/2"
         style={{
-          width: WORLD.width,
-          height: WORLD.height,
+          width: layout.width,
+          height: layout.height,
           transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${fit * zoom})`,
           transformOrigin: "center",
           transition: dragging ? "none" : "transform 160ms ease",
         }}
       >
-        <KitchenBackdrop calm={calm} />
+        <KitchenBackdrop calm={calm} layout={layout} />
 
         <div className="pointer-events-none absolute inset-0">
-          {(Object.keys(ZONES) as ZoneId[]).filter((zone) => !focusProduction || zone === "production").map((zone) => {
+          {ZONE_ORDER.filter((zone) => !focusProduction || zone === "production").map((zone) => {
             const Icon = ZONE_ICON[zone];
             const meta = STATUS_META[zone];
             const count = buckets[zone].length;
@@ -152,26 +151,26 @@ export function KitchenScene({
                 key={zone}
                 className="sector-tag absolute"
                 style={{
-                  left: TAG_POS[zone].x,
-                  top: TAG_POS[zone].y,
+                  left: layout.tags[zone].x,
+                  top: layout.tags[zone].y,
                   transform: `scale(${labelScale})`,
                   transformOrigin: "0 100%",
                   ["--accent" as string]: meta.color,
                 }}
               >
                 <span className="sector-tag__icon"><Icon className="h-3.5 w-3.5" /></span>
-                <span className="sector-tag__name">{ZONES[zone].label}</span>
+                <span className="sector-tag__name">{ZONE_LABEL[zone]}</span>
                 <span className="sector-tag__count">{count}</span>
                 <span className="text-[10px] text-[#9a837d]">{units} potes</span>
               </div>
             );
           })}
 
-          {!focusProduction && FRIDGE.xs.map((fx, i) => {
+          {!focusProduction && layout.fridge.xs.map((fx, i) => {
             const list = perFridge[i];
             const units = list.reduce((s, o) => s + o.unitsOrdered, 0);
             return (
-              <div key={fx} className="fridge-head" style={{ left: fx, top: FRIDGE.y, width: FRIDGE.w, height: FRIDGE.headH }}>
+              <div key={i} className="fridge-head" style={{ left: fx, top: layout.fridge.y, width: layout.fridge.w, height: layout.fridge.headH }}>
                 <span className="fridge-head__icon"><Snowflake className="h-4 w-4" /></span>
                 <span className="fridge-head__name">Heladera {i + 1}</span>
                 <span className="fridge-head__meta">
