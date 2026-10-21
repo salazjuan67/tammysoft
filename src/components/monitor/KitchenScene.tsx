@@ -138,7 +138,11 @@ export function KitchenScene({
           transition: dragging ? "none" : "transform 160ms ease",
         }}
       >
-        <KitchenBackdrop calm={calm} layout={layout} />
+        <KitchenBackdrop
+          calm={calm}
+          layout={layout}
+          crew={{ pending: buckets.pending.length, production: buckets.production.length, dispatch: buckets.ready_dispatch.length }}
+        />
 
         <div className="pointer-events-none absolute inset-0">
           {ZONE_ORDER.filter((zone) => !focusProduction || zone === "production").map((zone) => {

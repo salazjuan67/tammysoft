@@ -70,6 +70,55 @@ export function IsoPlant({ x, y }: { x: number; y: number }) {
   );
 }
 
+const HAIR = ["#6b4a3a", "#2f2420", "#b9814f", "#8a5a3c", "#3d2b24"];
+
+/**
+ * Figura de ambiente vista de espaldas, trabajando hacia la mesa. `x,y` = pies.
+ * Es decorativa: no representa personal real ni asignaciones.
+ */
+export function IsoWorker({ x, y, accent, variant = 0, courier = false, animate }: {
+  x: number; y: number; accent: string; variant?: number; courier?: boolean; animate: boolean;
+}) {
+  const hair = HAIR[variant % HAIR.length];
+  const jacket = courier ? accent : "#ffffff";
+  const delay = `${(variant % 4) * -0.7}s`;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <ellipse cx="0" cy="2" rx="24" ry="7" fill="#000" opacity="0.12" />
+      <rect x="-12" y="-36" width="10" height="36" rx="4" fill="#4a3b36" />
+      <rect x="2" y="-36" width="10" height="36" rx="4" fill="#3f322e" />
+      <ellipse cx="-7" cy="0" rx="8" ry="4" fill="#2a201d" />
+      <ellipse cx="7" cy="0" rx="8" ry="4" fill="#2a201d" />
+      <g className={animate ? "tammy-ops-arm" : ""} style={{ animationDelay: delay }}>
+        <rect x="-29" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(24 -23 -80)" />
+      </g>
+      <g className={animate ? "tammy-ops-arm tammy-ops-arm--r" : ""} style={{ animationDelay: delay }}>
+        <rect x="18" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(-24 23 -80)" />
+      </g>
+      <rect x="-21" y="-88" width="42" height="58" rx="15" fill={jacket} stroke={courier ? "rgba(0,0,0,.12)" : "#e3d3cc"} />
+      {!courier && (
+        <>
+          <rect x="-21" y="-56" width="42" height="5" fill={accent} />
+          <path d="M-4 -51 L-10 -40 M4 -51 L10 -40" stroke={accent} strokeWidth="4" strokeLinecap="round" />
+        </>
+      )}
+      {courier && <rect x="-14" y="-80" width="28" height="34" rx="6" fill="#000" opacity="0.12" />}
+      <rect x="-5" y="-94" width="10" height="8" rx="3" fill="#e8b89c" />
+      <circle cx="0" cy="-104" r="15" fill={hair} />
+      {courier ? (
+        <path d="M-16 -106 Q0 -126 16 -106 Z" fill={accent} stroke="rgba(0,0,0,.15)" />
+      ) : (
+        <g fill="#fff" stroke="#e6dad4" strokeWidth="1.5">
+          <rect x="-14" y="-122" width="28" height="12" rx="3" />
+          <circle cx="-8" cy="-126" r="8" />
+          <circle cx="8" cy="-126" r="8" />
+          <circle cx="0" cy="-131" r="9" />
+        </g>
+      )}
+    </g>
+  );
+}
+
 /** Cantidad de cajas apiladas según potes: ≤12 una, ≤28 dos, más de 28 tres. */
 export function crateLayers(units: number) {
   return units > 28 ? 3 : units > 12 ? 2 : 1;

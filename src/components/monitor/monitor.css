@@ -120,6 +120,16 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 }
 .tammy-ops-glow { animation: ops-glow 3.6s ease-in-out infinite; }
 .tammy-ops-steam { animation: ops-steam 4s ease-in-out infinite; }
+.tammy-ops-arm {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: ops-arm 1.6s ease-in-out infinite;
+}
+.tammy-ops-arm--r { animation-direction: alternate-reverse; }
+@keyframes ops-arm {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-8deg) translateY(-3px); }
+}
 
 /* Renglón dentro de una vitrina (unidades del mundo, no se contra-escala). */
 .shelf-tag {
@@ -275,7 +285,7 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tammy-ops-mixer, .tammy-ops-glow, .tammy-ops-steam,
+  .tammy-ops-mixer, .tammy-ops-glow, .tammy-ops-steam, .tammy-ops-arm,
   .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
   .tammy-ops-chip[data-alert="true"].shelf-tag,
   .tammy-ops-chip[data-alert="true"] .slot-tag__dot { animation: none; }
@@ -284,6 +294,7 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 .tammy-ops.calm .tammy-ops-mixer,
 .tammy-ops.calm .tammy-ops-glow,
 .tammy-ops.calm .tammy-ops-steam,
+.tammy-ops.calm .tammy-ops-arm,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"].shelf-tag,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"] .slot-tag__dot { animation: none; }
