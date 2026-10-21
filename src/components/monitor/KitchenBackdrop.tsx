@@ -5,10 +5,12 @@ import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 const ORDERS_PER_WORKER = { pending: 4, production: 3 };
 
 export type Crew = { pending: number; production: number; dispatch: number };
-export type CrewSpot = { x: number; y: number; accent: string; courier?: boolean };
+export type CrewStation = { x: number; y: number };
+/** Un grupo por ambiente: `count` personas repartidas entre más `stations` libres para poder cambiar de lugar. */
+export type CrewGroup = { key: string; count: number; stations: CrewStation[]; accent: string; courier?: boolean };
 
 /** Dónde pararse frente a cada mesa; `y` = pies, usado también para ordenar en profundidad con las cajas. */
-export function crewSpots(layout: SceneLayout, crew: Crew): CrewSpot[] {
+export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   const { width: W, rooms, zones, coldSplitX } = layout;
   const [, a] = rooms.pending;
   const [, b] = rooms.production;
@@ -19,22 +21,38 @@ export function crewSpots(layout: SceneLayout, crew: Crew): CrewSpot[] {
   const showPending = a >= 400;
   const showCold = W - b >= 700;
 
-  const workers: CrewSpot[] = [];
-  const prodCount = Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production));
-  for (let i = 0; i < prodCount; i++) {
-    const table = i % 3;
-    const spot = Math.floor(i / 3);
-    workers.push({ x: a + 60 + prodTableW * (0.3 + spot * 0.45), y: 440 + table * 280, accent: "#e38ea1" });
+  const groups: CrewGroup[] = [];
+  // Estaciones de producción intercaladas por mesa, así las primeras personas quedan repartidas.
+  const prodStations: CrewStation[] = [];
+  for (const f of [0.3, 0.75, 0.1, 0.52, 0.92, 0.2, 0.42, 0.63, 0.85, 0.04]) {
+    for (let table = 0; table < 3; table++) prodStations.push({ x: a + 60 + prodTableW * f, y: 440 + table * 280 });
   }
+  groups.push({
+    key: "production",
+    count: Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production)),
+    stations: prodStations,
+    accent: "#e38ea1",
+  });
   if (showPending) {
-    const pendCount = Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending));
-    for (let i = 0; i < pendCount; i++) workers.push({ x: 50 + pendingTableW * 0.55, y: 665 + i * 300, accent: "#d7a68d" });
+    const pendStations: CrewStation[] = [];
+    for (const f of [0.55, 0.2, 0.85, 0.38, 0.7]) for (let t = 0; t < 2; t++) pendStations.push({ x: 50 + pendingTableW * f, y: 665 + t * 300 });
+    groups.push({
+      key: "pending",
+      count: Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending)),
+      stations: pendStations,
+      accent: "#d7a68d",
+    });
   }
-  if (showCold && crew.dispatch > 0) {
-    workers.push({ x: b + 40 + dispatchTableW * 0.5, y: lowerTableY + 95, accent: "#a27fc0", courier: true });
+  if (showCold) {
+    groups.push({
+      key: "dispatch",
+      count: crew.dispatch > 0 ? 1 : 0,
+      stations: [0.5, 0.15, 0.85, 0.32, 0.68].map((f) => ({ x: b + 40 + dispatchTableW * f, y: lowerTableY + 95 })),
+      accent: "#a27fc0",
+      courier: true,
+    });
   }
-
-  return workers;
+  return groups;
 }
 
 export function KitchenBackdrop({

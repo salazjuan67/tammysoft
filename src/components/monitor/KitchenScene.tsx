@@ -5,8 +5,12 @@ import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomO
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
-import { crewSpots, KitchenBackdrop } from "./KitchenBackdrop";
-import { IsoWorker } from "./Iso";
+import { crewGroups, KitchenBackdrop } from "./KitchenBackdrop";
+import { useCrew } from "./useCrew";
+import { CRATE_W, IsoWorker } from "./Iso";
+
+/** Distancia horizontal mínima entre una persona y el centro de una caja de su mesa. */
+const CREW_CLEARANCE = 105;
 import { OrderChip } from "./OrderChip";
 import { STATUS_META } from "./ui";
 
@@ -64,11 +68,25 @@ export function KitchenScene({
   // Redondeado para no recalcular el armado en cada píxel de un resize.
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 20) / 20;
   const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focusProduction), [orders, aspect, focusProduction]);
-  const crew = crewSpots(layout, {
-    pending: buckets.pending.length,
-    production: buckets.production.length,
-    dispatch: buckets.ready_dispatch.length,
-  });
+  // Las personas se paran entre las cajas de su mesa, nunca delante de una (taparían la etiqueta).
+  const crateCenters = useMemo(
+    () =>
+      [...positions.values()].flat().filter((p) => p.kind === "crate").map((p) => ({ x: p.x + CRATE_W / 2, y: p.y })),
+    [positions],
+  );
+  const crew = useCrew(
+    crewGroups(layout, {
+      pending: buckets.pending.length,
+      production: buckets.production.length,
+      dispatch: buckets.ready_dispatch.length,
+    }).map((g) => {
+      const stations = g.stations.filter(
+        (st) => !crateCenters.some((c) => Math.abs(c.x - st.x) < CREW_CLEARANCE && c.y < st.y && c.y > st.y - 300),
+      );
+      return { ...g, stations, count: Math.min(g.count, stations.length) };
+    }),
+    !calm,
+  );
   const currentRango = currentAndNextRangos().current;
   const [labels, setLabels] = useState(true);
   const fit = Math.min(size.width / layout.width, size.height / layout.height);
@@ -190,15 +208,15 @@ export function KitchenScene({
         <div className="absolute inset-0">
           {crew.map((w, i) => (
             <svg
-              key={`crew-${i}`}
-              className="pointer-events-none absolute"
+              key={w.id}
+              className="tammy-ops-crew pointer-events-none absolute"
               style={{ left: w.x - 40, top: w.y - 140, zIndex: Math.round(w.y / 4) }}
               width="80"
               height="150"
               viewBox="-40 -140 80 150"
               aria-hidden
             >
-              <IsoWorker x={0} y={0} accent={w.accent} courier={w.courier} variant={i} animate={!calm} />
+              <IsoWorker x={0} y={0} accent={w.accent} courier={w.courier} variant={i} walking={w.walking} />
             </svg>
           ))}
           {orders.flatMap((order, i) => {
