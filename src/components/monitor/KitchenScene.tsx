@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag } from "lucide-react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
-import { assignSlots, WORLD, ZONES, type ZoneId } from "@/lib/monitor/layout";
+import { assignSlots, FRIDGE, WORLD, ZONES, type ZoneId } from "@/lib/monitor/layout";
+import { currentAndNextRangos } from "@/lib/monitor/time";
 import { KitchenBackdrop } from "./KitchenBackdrop";
 import { OrderChip } from "./OrderChip";
 import { STATUS_META } from "./ui";
@@ -17,11 +18,11 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
 };
 
 const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
-  pending: { x: 96, y: 470 },
+  pending: { x: 96, y: 440 },
   production: { x: 590, y: 198 },
-  stored: { x: 1440, y: 96 },
-  ready_dispatch: { x: 1430, y: 556 },
-  delivered: { x: 1810, y: 556 },
+  stored: { x: 1410, y: 104 },
+  ready_dispatch: { x: 1430, y: 520 },
+  delivered: { x: 1810, y: 520 },
 };
 
 export function KitchenScene({
@@ -45,7 +46,8 @@ export function KitchenScene({
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
-  const { positions, buckets } = useMemo(() => assignSlots(orders), [orders]);
+  const { positions, buckets, perFridge } = useMemo(() => assignSlots(orders), [orders]);
+  const currentRango = currentAndNextRangos().current;
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [labels, setLabels] = useState(true);
@@ -72,6 +74,14 @@ export function KitchenScene({
   function onWheel(e: React.WheelEvent) {
     e.preventDefault();
     setZoom((z) => Math.min(2.2, Math.max(0.7, z + (e.deltaY > 0 ? -0.08 : 0.08))));
+  }
+
+  function isDimmed(order: MonitorOrder) {
+    if (filter === "all") return false;
+    if (filter === "alerts") return !alertIds.has(order.id);
+    if (filter === "ready_dispatch") return order.status !== "ready_dispatch";
+    if (filter === "stored") return order.status !== "stored" && order.status !== "ready_dispatch";
+    return order.status !== filter;
   }
 
   return (
@@ -128,29 +138,41 @@ export function KitchenScene({
               </div>
             );
           })}
+
+          {FRIDGE.xs.map((fx, i) => {
+            const list = perFridge[i];
+            const units = list.reduce((s, o) => s + o.unitsOrdered, 0);
+            return (
+              <div key={fx} className="fridge-head" style={{ left: fx, top: FRIDGE.y, width: FRIDGE.w, height: FRIDGE.headH }}>
+                <span className="fridge-head__icon"><Snowflake className="h-4 w-4" /></span>
+                <span className="fridge-head__name">Heladera {i + 1}</span>
+                <span className="fridge-head__meta">
+                  {list.length === 0 ? <small>vacía</small> : <>{units}u <small>· {list.length}</small></>}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="absolute inset-0">
-          {orders.map((order) => {
+          {orders.flatMap((order, i) => {
             const slots = positions.get(order.id);
-            if (!slots) return null;
-            const dimmed = filter !== "all" && filter !== "alerts"
-              ? filter === "ready_dispatch"
-                ? order.status !== "ready_dispatch"
-                : filter === "stored"
-                  ? order.status !== "stored" && order.status !== "ready_dispatch"
-                  : order.status !== filter
-              : filter === "alerts" && !alertIds.has(order.id);
-            return slots.map((slot, i) => (
+            if (!slots) return [];
+            const dimmed = isDimmed(order);
+            const isEntering = entering?.includes(order.id);
+            return slots.map((slot, s) => (
               <OrderChip
-                key={order.id + slot.zone + i}
+                // Clave estable por pedido: al cambiar de sala, la caja se desliza en vez de remontarse.
+                key={s === 0 ? order.id : `${order.id}:${slot.zone}`}
                 order={order}
                 slot={slot}
                 selected={selectedId === order.id}
                 alert={alertIds.has(order.id)}
+                hot={order.rangoHorario === currentRango}
                 tv={tv}
-                dimmed={Boolean(dimmed)}
-                entering={entering?.includes(order.id)}
+                dimmed={dimmed}
+                entering={isEntering}
+                enterDelay={Math.min(600, i * 35)}
                 showLabel={labels}
                 labelScale={labelScale}
                 onSelect={(id) => {

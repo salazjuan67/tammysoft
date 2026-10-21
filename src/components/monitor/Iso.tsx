@@ -18,28 +18,21 @@ export function IsoTable({
   );
 }
 
-export function IsoFridge({ x, y, label, glow }: { x: number; y: number; label: string; glow: boolean }) {
-  const w = 118;
-  const d = 46;
-  const h = 210;
-  const ox = d * 0.72;
-  const oy = d * 0.38;
+/** Vitrina frontal con leve costado isométrico; el cabezal y los renglones van en HTML encima. */
+export function Vitrina({ x, y, w, h, headH, glow }: { x: number; y: number; w: number; h: number; headH: number; glow: boolean }) {
+  const d = 22;
   return (
     <g>
-      <ellipse cx={x + w / 2 + ox / 2} cy={y + h + 10} rx={w / 2 + 14} ry={14} fill="#000" opacity="0.08" />
-      <polygon points={`${x},${y + h} ${x + ox},${y + h - oy} ${x + ox},${y - oy} ${x},${y}`} fill="#a9cbd6" />
-      <polygon points={`${x + w},${y + h} ${x + w + ox},${y + h - oy} ${x + w + ox},${y - oy} ${x + w},${y}`} fill="#eef8fb" stroke="#bfdde6" />
-      <polygon points={`${x},${y} ${x + w},${y} ${x + w + ox},${y - oy} ${x + ox},${y - oy}`} fill="#d7eef4" />
-      <rect x={x + 10} y={y + 16} width={w - 18} height={h - 36} rx="8" fill="#bfe3ee" stroke="#8fb9c6" />
-      <rect className={glow ? "tammy-ops-glow" : ""} x={x + 16} y={y + 24} width={w - 30} height={h - 52} rx="6" fill="#f4fcff" opacity="0.8" />
-      {[0, 1, 2].map((s) => (
-        <g key={s}>
-          <rect x={x + 16} y={y + 60 + s * 48} width={w - 30} height="3" fill="#9cc9d4" />
-          <text x={x + 22} y={y + 52 + s * 48} fill="#4d8392" fontSize="10" fontFamily="ui-monospace, monospace" fontWeight="700">{String.fromCharCode(65 + s)}</text>
-        </g>
-      ))}
-      <rect x={x + w - 14} y={y + h / 2 - 16} width="4" height="32" rx="2" fill="#6f9aa6" />
-      <text x={x + w / 2} y={y + h + 24} textAnchor="middle" fill="#2f6d7c" fontSize="12" fontFamily="sans-serif" fontWeight="700">{label}</text>
+      <ellipse cx={x + w / 2 + d / 2} cy={y + h + 12} rx={w / 2 + 10} ry={12} fill="#000" opacity="0.08" />
+      <polygon points={`${x + w},${y} ${x + w + d},${y - d * 0.5} ${x + w + d},${y + h - d * 0.5} ${x + w},${y + h}`} fill="#a9cbd6" />
+      <polygon points={`${x},${y} ${x + w},${y} ${x + w + d},${y - d * 0.5} ${x + d},${y - d * 0.5}`} fill="#d7eef4" />
+      <rect x={x} y={y} width={w} height={h} rx="12" fill="#e6f4f8" stroke="#bcd8e2" strokeWidth="2" />
+      <rect x={x} y={y} width={w} height={headH} rx="12" fill="#cfe7ef" />
+      <rect x={x} y={y + headH - 10} width={w} height="10" fill="#cfe7ef" />
+      <rect x={x + 8} y={y + headH + 2} width={w - 16} height={h - headH - 12} rx="8" fill="#f6fcfe" stroke="#cfe3ea" />
+      <rect className={glow ? "tammy-ops-glow" : ""} x={x + 12} y={y + headH + 6} width="6" height={h - headH - 20} rx="3" fill="#9fd7e8" />
+      <line x1={x + w - 30} y1={y + headH + 10} x2={x + w - 14} y2={y + h - 20} stroke="#fff" strokeWidth="6" strokeLinecap="round" opacity="0.8" />
+      <rect x={x + w - 12} y={y + h / 2 - 20} width="5" height="40" rx="2.5" fill="#6f9aa6" />
     </g>
   );
 }
@@ -77,29 +70,53 @@ export function IsoPlant({ x, y }: { x: number; y: number }) {
   );
 }
 
+/** Cantidad de cajas apiladas según potes: ≤12 una, ≤28 dos, más de 28 tres. */
+export function crateLayers(units: number) {
+  return units > 28 ? 3 : units > 12 ? 2 : 1;
+}
+
+export const CRATE_W = 104;
+const LAYER_DY = 17;
+
+export function crateHeight(units: number) {
+  return Math.round((70 + (crateLayers(units) - 1) * LAYER_DY) * (CRATE_W / 84));
+}
+
 export function IsoCrate({ fill, side, units }: { fill: string; side: string; units: number }) {
+  const layers = crateLayers(units);
   const dots = Math.min(6, Math.max(1, Math.ceil(units / 4)));
-  return (
-    <svg width="84" height="70" viewBox="0 0 84 70" aria-hidden>
-      <ellipse cx="42" cy="64" rx="34" ry="6" fill="#000" opacity="0.14" />
+  const H = 70 + (layers - 1) * LAYER_DY;
+  const Layer = ({ ty, top }: { ty: number; top: boolean }) => (
+    <g transform={`translate(0 ${ty})`}>
       <polygon points="6,30 42,12 78,30 42,48" fill={fill} />
       <polygon points="6,30 6,50 42,68 42,48" fill={side} />
       <polygon points="42,48 42,68 78,50 78,30" fill="#ffffff" opacity="0.3" />
       <polygon points="42,48 42,68 78,50 78,30" fill={side} opacity="0.35" />
+      <line x1="6" y1="40" x2="42" y2="58" stroke="#000" strokeOpacity="0.08" strokeWidth="2" />
+      <line x1="42" y1="58" x2="78" y2="40" stroke="#fff" strokeOpacity="0.35" strokeWidth="2" />
       <polygon points="6,30 42,12 78,30 42,48" fill="none" stroke="#ffffff" strokeOpacity="0.8" strokeWidth="1.2" />
-      {Array.from({ length: dots }, (_, i) => {
-        const col = i % 3;
-        const row = Math.floor(i / 3);
-        const cx = 42 + (col - 1) * 11 + row * 10;
-        const cy = 30 + (col - 1) * 5.5 - row * 5;
-        return (
-          <g key={i}>
-            <ellipse cx={cx} cy={cy + 1} rx="5" ry="2.6" fill="#000" opacity="0.12" />
-            <ellipse cx={cx} cy={cy} rx="5" ry="2.8" fill="#fff" />
-            <ellipse cx={cx} cy={cy - 1} rx="3.4" ry="1.8" fill="#f2b7c0" />
-          </g>
-        );
-      })}
+      {top &&
+        Array.from({ length: dots }, (_, i) => {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          const cx = 42 + (col - 1) * 11 + row * 10;
+          const cy = 30 + (col - 1) * 5.5 - row * 5;
+          return (
+            <g key={i}>
+              <ellipse cx={cx} cy={cy + 1} rx="5" ry="2.6" fill="#000" opacity="0.12" />
+              <ellipse cx={cx} cy={cy} rx="5" ry="2.8" fill="#fff" />
+              <ellipse cx={cx} cy={cy - 1} rx="3.4" ry="1.8" fill="#f2b7c0" />
+            </g>
+          );
+        })}
+    </g>
+  );
+  return (
+    <svg width={CRATE_W} height={Math.round(H * (CRATE_W / 84))} viewBox={`0 0 84 ${H}`} aria-hidden>
+      <ellipse cx="42" cy={H - 6} rx="36" ry="7" fill="#000" opacity="0.16" />
+      {Array.from({ length: layers }, (_, l) => (
+        <Layer key={l} ty={(layers - 1 - l) * LAYER_DY} top={l === layers - 1} />
+      ))}
     </svg>
   );
 }

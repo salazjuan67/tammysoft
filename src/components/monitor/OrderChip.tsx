@@ -2,8 +2,8 @@
 
 import type { MonitorOrder } from "@/lib/monitor/types";
 import { sceneStatus } from "@/lib/monitor/selectors";
-import type { SlotPos } from "@/lib/monitor/layout";
-import { IsoCrate } from "./Iso";
+import { FRIDGE, type SlotPos } from "@/lib/monitor/layout";
+import { CRATE_W, crateHeight, IsoCrate } from "./Iso";
 import { ALERT_COLOR, STATUS_META } from "./ui";
 
 const CRATE: Record<string, { fill: string; side: string }> = {
@@ -19,9 +19,11 @@ export function OrderChip({
   slot,
   selected,
   alert,
+  hot,
   tv,
   dimmed,
   entering,
+  enterDelay = 0,
   showLabel,
   labelScale,
   onSelect,
@@ -30,9 +32,12 @@ export function OrderChip({
   slot: SlotPos;
   selected: boolean;
   alert: boolean;
+  /** Entrega en el rango horario actual (y todavía no salió). */
+  hot: boolean;
   tv: boolean;
   dimmed: boolean;
   entering?: boolean;
+  enterDelay?: number;
   showLabel: boolean;
   /** Factor inverso al zoom de la escena: las etiquetas mantienen tamaño legible en pantalla. */
   labelScale: number;
@@ -43,32 +48,71 @@ export function OrderChip({
   const accent = alert ? ALERT_COLOR : (STATUS_META[zone]?.color ?? STATUS_META.pending.color);
   const full = order.endCustomerName ?? order.customerName;
   const name = full.split(" ").slice(0, tv ? 1 : 2).join(" ");
-  const left = slot.x;
-  const top = slot.y;
+  const done = zone === "delivered";
+  const common = {
+    "data-selected": selected,
+    "data-alert": alert,
+    "data-hot": hot && !done,
+    "data-done": done,
+  };
+  const enterStyle = entering ? { animation: `ops-in 420ms ease ${enterDelay}ms both` } : undefined;
 
   if (slot.overflow) {
+    const label = `+${slot.extra ?? ""} más`;
+    if (slot.kind === "shelf") {
+      return (
+        <button
+          type="button"
+          onClick={() => onSelect("__overflow_" + slot.zone)}
+          className="shelf-tag shelf-tag--more absolute"
+          style={{ left: slot.x, top: slot.y, width: FRIDGE.w - 20 }}
+        >
+          {label} en esta heladera
+        </button>
+      );
+    }
     return (
       <button
         type="button"
         onClick={() => onSelect("__overflow_" + slot.zone)}
         className="glass absolute rounded-full px-3 py-1.5 text-[12px] font-bold text-[#c45b72]"
-        style={{ left, top: top + 20, transform: `scale(${labelScale})`, transformOrigin: "0 0" }}
+        style={{ left: slot.x, top: slot.y + 30, transform: `scale(${labelScale})`, transformOrigin: "0 0" }}
       >
-        + más pedidos
+        {label} pedidos
       </button>
     );
   }
 
+  if (slot.kind === "shelf") {
+    return (
+      <button
+        type="button"
+        {...common}
+        onClick={() => onSelect(order.id)}
+        title={`${order.code} · ${full} · ${order.unitsOrdered} potes`}
+        className={`tammy-ops-chip shelf-tag absolute text-left ${dimmed ? "opacity-25" : "opacity-100"}`}
+        style={{ left: slot.x, top: slot.y, width: FRIDGE.w - 20, zIndex: selected ? 900 : Math.round(slot.y / 4), ["--accent" as string]: accent, ...enterStyle }}
+      >
+        <span className="shelf-tag__shelf" title="Estante">{slot.shelf}</span>
+        <span className="shelf-tag__plate">{order.code}</span>
+        <span className="shelf-tag__name">{name}</span>
+        <span className="shelf-tag__units">{order.unitsOrdered}u</span>
+      </button>
+    );
+  }
+
+  const h = crateHeight(order.unitsOrdered);
   return (
     <button
       type="button"
-      data-selected={selected}
-      data-alert={alert}
+      {...common}
       onClick={() => onSelect(order.id)}
-      className={`tammy-ops-chip absolute w-[84px] text-left ${dimmed ? "opacity-25" : "opacity-100"} ${entering ? "animate-[ops-in_350ms_ease]" : ""}`}
-      style={{ left, top, zIndex: selected ? 30 : 5, ["--accent" as string]: accent }}
+      className={`tammy-ops-chip absolute text-left ${dimmed ? "opacity-25" : ""}`}
+      style={{ left: slot.x, top: slot.y - (h - 86), width: CRATE_W, zIndex: selected ? 900 : Math.round(slot.y / 4), ["--accent" as string]: accent, ...enterStyle }}
     >
-      <IsoCrate fill={crate.fill} side={crate.side} units={order.unitsOrdered} />
+      <span className="tammy-ops-crate block">
+        <IsoCrate fill={crate.fill} side={crate.side} units={order.unitsOrdered} />
+      </span>
       {(showLabel || selected) && (
         <span
           className="slot-tag absolute left-1/2 top-0"
@@ -83,8 +127,8 @@ export function OrderChip({
           <span className="slot-tag__units">{order.unitsOrdered}u</span>
         </span>
       )}
-      {zone === "delivered" && (
-        <span className="absolute -right-1 top-2 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[10px] font-bold text-white shadow">✓</span>
+      {done && (
+        <span className="absolute -right-1 top-3 grid h-6 w-6 place-items-center rounded-full bg-emerald-500 text-[11px] font-bold text-white shadow">✓</span>
       )}
     </button>
   );

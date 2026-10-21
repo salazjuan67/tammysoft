@@ -1,7 +1,8 @@
-import { IsoFridge, IsoPlant, IsoShelf, IsoTable } from "./Iso";
+import { FRIDGE, WORLD } from "@/lib/monitor/layout";
+import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 
-const W = 2200;
-const H = 1100;
+const W = WORLD.width;
+const H = WORLD.height;
 const WALL_Y = 262;
 const PARTITIONS = [520, 1385];
 
@@ -116,20 +117,20 @@ export function KitchenBackdrop({ calm }: { calm: boolean }) {
           <circle cx="2098" cy="58" r="4" fill="#5cc27a" />
         </g>
       </g>
-      <IsoFridge x={1440} y={188} label="Heladera 1" glow={!calm} />
-      <IsoFridge x={1700} y={188} label="Heladera 2" glow={!calm} />
-      <IsoFridge x={1960} y={188} label="Heladera 3" glow={!calm} />
-      <IsoTable x={1430} y={690} w={320} d={120} h={38} top="#e6d2f4" left="#b894d0" right="#d8c0ea" edge="#a27fc0" />
-      <IsoTable x={1810} y={690} w={320} d={120} h={38} top="#d7f0e0" left="#8fc9a8" right="#c5e8d2" edge="#7cb894" />
+      {FRIDGE.xs.map((fx) => (
+        <Vitrina key={fx} x={fx} y={FRIDGE.y} w={FRIDGE.w} h={FRIDGE.h} headH={FRIDGE.headH} glow={!calm} />
+      ))}
+      <IsoTable x={1430} y={700} w={320} d={120} h={38} top="#e6d2f4" left="#b894d0" right="#d8c0ea" edge="#a27fc0" />
+      <IsoTable x={1810} y={700} w={320} d={120} h={38} top="#d7f0e0" left="#8fc9a8" right="#c5e8d2" edge="#7cb894" />
       <g>
-        <rect x="2110" y="880" width="46" height="60" rx="6" fill="#efe9e4" stroke="#d3cbc3" />
-        <rect x="2118" y="887" width="30" height="20" rx="3" fill="#cfe6ee" />
-        <rect x="2118" y="913" width="30" height="20" rx="3" fill="#e4dcd4" />
+        <rect x="2110" y="940" width="46" height="60" rx="6" fill="#efe9e4" stroke="#d3cbc3" />
+        <rect x="2118" y="947" width="30" height="20" rx="3" fill="#cfe6ee" />
+        <rect x="2118" y="973" width="30" height="20" rx="3" fill="#e4dcd4" />
       </g>
 
-      <IsoPlant x={60} y={1010} />
-      <IsoPlant x={1330} y={1040} />
-      <IsoPlant x={2150} y={1010} />
+      <IsoPlant x={60} y={1110} />
+      <IsoPlant x={1330} y={1140} />
+      <IsoPlant x={2150} y={1110} />
     </svg>
   );
 }
