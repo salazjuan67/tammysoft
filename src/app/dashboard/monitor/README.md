@@ -36,7 +36,7 @@ No hay alertas de stock ni temperatura: el sistema no tiene esos datos.
 
 ## Assets
 
-Escena: mundo 2200×1200 en tres ambientes (mostrador de pendientes, sala de producción, cámara fría). Topes visibles por zona en `layout.ts` (`ZONES[zone].cap`: producción 16, resto 10; vitrinas 6 renglones por heladera); el excedente se muestra como "+N" que abre la lista filtrada. Las cajas apilan 1/2/3 niveles según potes (≤12, ≤28, >28). Las heladeras se dibujan como vitrinas con un renglón por pedido (estante · código · cliente · potes); ids de heladera mayores a 3 se agrupan en la tercera. La escena está dibujada en `KitchenBackdrop.tsx` (SVG). Para sustituir ilustraciones, reemplazá ese componente o colocá archivos en `public/monitor/kitchen/` y referencelos como `<image href="/monitor/kitchen/....svg">` sin cambiar `layout.ts` (anclajes de zonas).
+Escena: mundo 2200×1200 en tres ambientes (mostrador de pendientes, sala de producción, cámara fría). Topes visibles por zona en `layout.ts` (`ZONES[zone].cap`: producción 60, por hacer 36, despacho 24, entregados 30; vitrinas 16 renglones por heladera). El paso entre cajas se achica para que entre el día completo; el excedente se muestra como "+N" que abre la lista filtrada. Las cajas apilan 1/2/3 niveles según potes (≤12, ≤28, >28). Las heladeras se dibujan como vitrinas con un renglón por pedido (estante · código · cliente · potes); ids de heladera mayores a 3 se agrupan en la tercera. La escena está dibujada en `KitchenBackdrop.tsx` (SVG). Para sustituir ilustraciones, reemplazá ese componente o colocá archivos en `public/monitor/kitchen/` y referencelos como `<image href="/monitor/kitchen/....svg">` sin cambiar `layout.ts` (anclajes de zonas).
 
 ## Demo
 

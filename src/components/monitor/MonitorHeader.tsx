@@ -41,9 +41,9 @@ export function MonitorHeader({
     : "";
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+    <header className="flex flex-wrap items-center justify-between gap-2 px-3 pt-2">
       <div className="flex items-center gap-3">
-        <img src="/brand/logo-tammy.png" alt="Postres Tammy" className="h-12 w-auto" />
+        <img src="/brand/logo-tammy.png" alt="Postres Tammy" className="h-9 w-auto" />
         <p className="label-caps hidden sm:block">Centro de control del obrador</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

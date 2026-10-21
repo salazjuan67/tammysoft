@@ -40,8 +40,8 @@ export function MonitorApp() {
   useEffect(() => {
     const small = window.matchMedia("(max-width: 900px)").matches;
     if (small) setView("list");
-    setSidebarOff(localStorage.getItem("tammy.ops.sidebar") === "off");
-    setPanelOff(localStorage.getItem("tammy.ops.panel") === "off");
+    setSidebarOff(localStorage.getItem("tammy.ops.sidebar") !== "on");
+    setPanelOff(localStorage.getItem("tammy.ops.panel") !== "on");
   }, []);
 
   function toggleSidebar() {
@@ -104,7 +104,40 @@ export function MonitorApp() {
     : [];
 
   return (
-    <div id="tammy-ops-root" className={`tammy-ops flex h-[100dvh] flex-col ${calm ? "calm" : ""} ${tv ? "tv" : ""}`}>
+    <div id="tammy-ops-root" className={`tammy-ops relative h-[100dvh] overflow-hidden ${calm ? "calm" : ""} ${tv ? "tv" : ""}`}>
+      <div className={view === "list" ? "absolute inset-0" : "absolute inset-x-0 bottom-0 top-44"}>
+        {!snapshot ? (
+          <div className="flex h-full items-center justify-center text-sm text-[#9a837d]">Cargando obrador…</div>
+        ) : view === "list" ? (
+          <div className="h-full px-3 pb-3 pt-40">
+            <MonitorList
+              orders={snapshot.orders}
+              filter={filter}
+              alertIds={alertIds}
+              selectedId={selectedId}
+              query={query}
+              onSelect={locate}
+            />
+          </div>
+        ) : (
+          <KitchenScene
+            key={view}
+            orders={view === "production" ? sceneOrders.filter((o) => o.status === "production") : sceneOrders}
+            filter={view === "production" ? "production" : filter}
+            alertIds={alertIds}
+            selectedId={selectedId}
+            tv={tv}
+            calm={calm}
+            entering={diff.entered}
+            focusProduction={view === "production"}
+            onSelect={locate}
+            onOverflow={onOverflow}
+          />
+        )}
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-[#fff5f2] via-[#fff5f2]/95 to-transparent pb-3">
+      <div className="pointer-events-auto">
       <MonitorHeader
         fecha={fecha}
         onFecha={setFecha}
@@ -123,14 +156,12 @@ export function MonitorApp() {
       />
       {snapshot && <MonitorKpiBar kpis={snapshot.kpis} filter={filter} onFilter={setFilter} />}
       {error && conn !== "live" && (
-        <p className="px-5 text-xs text-amber-800">
+        <p className="px-3 text-xs text-amber-800">
           {conn === "stale" ? "Mostrando último snapshot válido. " : ""}{error}
         </p>
       )}
 
-      <div className="relative flex min-h-0 flex-1 gap-3 px-5 pb-3">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-3 pb-1">
             <div className="relative min-w-[240px] flex-1">
               <div className="glass flex h-10 items-center gap-2 rounded-xl px-3">
                 <Search className="h-4 w-4 text-[#9a837d]" />
@@ -182,55 +213,31 @@ export function MonitorApp() {
               <Seg active={fridge} onClick={() => setFridge(true)} icon={<Snowflake className="h-3.5 w-3.5" />}>Heladeras</Seg>
             </div>
           </div>
+      </div>
+      </div>
 
-          {!snapshot ? (
-            <div className="glass flex flex-1 items-center justify-center rounded-[22px] text-sm text-[#9a837d]">Cargando obrador…</div>
-          ) : view === "list" ? (
-            <MonitorList
-              orders={snapshot.orders}
-              filter={filter}
-              alertIds={alertIds}
-              selectedId={selectedId}
-              query={query}
-              onSelect={locate}
-            />
-          ) : (
-            <KitchenScene
-              key={view}
-              orders={view === "production" ? sceneOrders.filter((o) => o.status === "production") : sceneOrders}
-              filter={view === "production" ? "production" : filter}
-              alertIds={alertIds}
-              selectedId={selectedId}
-              tv={tv}
-              calm={calm}
-              entering={diff.entered}
-              focusProduction={view === "production"}
-              onSelect={locate}
-              onOverflow={onOverflow}
-            />
-          )}
-          {snapshot && (
-            <p className="px-1 text-[10px] text-[#b59d97]">{snapshot.dispatchHeuristic}</p>
-          )}
-        </div>
+      {snapshot && (
+        <p className="pointer-events-none absolute bottom-1 left-3 z-20 text-[10px] text-[#b59d97]">{snapshot.dispatchHeuristic}</p>
+      )}
 
+      <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto">
         {snapshot && !showPanel && (
           <button
             type="button"
             onClick={() => (view === "production" ? setProdAlerts(true) : togglePanel())}
-            className="glass absolute right-3 top-14 z-20 hidden items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-[#6f5750] hover:bg-rose-50 lg:flex"
+            className="glass absolute right-3 top-48 hidden items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-[#6f5750] hover:bg-rose-50 lg:flex"
           >
             <AlertTriangle className="h-3.5 w-3.5 text-[#d9453d]" />
             Alertas{snapshot.alerts.length ? ` · ${snapshot.alerts.length}` : ""}
           </button>
         )}
         {snapshot && !showPanel && selected && (
-          <div className="absolute bottom-3 right-5 z-30 hidden w-[340px] lg:block" style={{ height: "min(78dvh, 720px)" }}>
+          <div className="absolute bottom-3 right-3 hidden w-[340px] lg:block" style={{ height: "min(78dvh, 720px)" }}>
             <OrderDetailDrawer order={selected} tv={tv} alert={alertIds.has(selected.id)} onClose={() => setSelectedId(null)} />
           </div>
         )}
         {snapshot && showPanel && (
-          <div className="hidden w-[340px] shrink-0 flex-col gap-3 lg:flex">
+          <div className="absolute bottom-3 right-3 top-48 hidden w-[340px] flex-col gap-3 lg:flex">
             <button
               type="button"
               onClick={() => (view === "production" ? setProdAlerts(false) : togglePanel())}

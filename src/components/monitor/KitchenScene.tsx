@@ -35,8 +35,8 @@ const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
   pending: { x: 96, y: 440 },
   production: { x: 590, y: 198 },
   stored: { x: 1410, y: 104 },
-  ready_dispatch: { x: 1430, y: 520 },
-  delivered: { x: 1810, y: 520 },
+  ready_dispatch: { x: 1430, y: 760 },
+  delivered: { x: 1800, y: 760 },
 };
 
 export function KitchenScene({
@@ -113,7 +113,7 @@ export function KitchenScene({
   return (
     <div
       ref={box}
-      className="relative min-h-0 flex-1 overflow-hidden rounded-[28px] border border-rose-100 bg-[#f8e6dc] shadow-[inset_0_1px_0_rgba(255,255,255,.6)]"
+      className="relative h-full w-full overflow-hidden bg-[#f8e6dc]"
       onWheel={onWheel}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;

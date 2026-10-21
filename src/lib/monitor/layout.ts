@@ -1,5 +1,4 @@
 import type { MonitorOrder } from "./types";
-import { ZONE_VISIBLE_CAP } from "./types";
 import { sceneStatus } from "./selectors";
 
 /**
@@ -12,23 +11,23 @@ export const WORLD = { width: 2200, height: 1200 };
 
 export type ZoneId = "pending" | "production" | "stored" | "ready_dispatch" | "delivered";
 
-export const ZONES: Record<ZoneId, { x: number; y: number; label: string; cols: number; cap: number }> = {
-  pending: { x: 110, y: 580, label: "Por hacer", cols: 2, cap: ZONE_VISIBLE_CAP },
-  production: { x: 620, y: 330, label: "Producción", cols: 4, cap: 16 },
-  stored: { x: 1410, y: 170, label: "Heladeras", cols: 3, cap: ZONE_VISIBLE_CAP },
-  ready_dispatch: { x: 1450, y: 670, label: "Despacho", cols: 2, cap: ZONE_VISIBLE_CAP },
-  delivered: { x: 1820, y: 670, label: "Entregados hoy", cols: 2, cap: ZONE_VISIBLE_CAP },
+export const ZONES: Record<ZoneId, { x: number; y: number; label: string; cols: number; cap: number; right: number; bottom: number }> = {
+  pending: { x: 70, y: 470, label: "Por hacer", cols: 2, cap: 36, right: 490, bottom: 1160 },
+  production: { x: 580, y: 280, label: "Producción", cols: 4, cap: 60, right: 1340, bottom: 1160 },
+  stored: { x: 1410, y: 150, label: "Heladeras", cols: 3, cap: 48, right: 2180, bottom: 760 },
+  ready_dispatch: { x: 1430, y: 820, label: "Despacho", cols: 2, cap: 24, right: 1760, bottom: 1160 },
+  delivered: { x: 1800, y: 820, label: "Entregados hoy", cols: 2, cap: 30, right: 2160, bottom: 1160 },
 };
 
 /** Geometría de las vitrinas: cada heladera lista sus pedidos como renglones ordenados por estante. */
 export const FRIDGE = {
   w: 250,
-  h: 300,
+  h: 46 + 16 * 30 + 16,
   headH: 46,
-  lineH: 38,
-  lines: 6,
+  lineH: 30,
+  lines: 16,
   xs: [1410, 1670, 1930],
-  y: 170,
+  y: 150,
 };
 
 /**
@@ -48,15 +47,19 @@ export type SlotPos = {
   shelf?: string;
 };
 
-// Paso horizontal de 200 (las etiquetas escaladas miden ≈240px, pero las columnas vecinas
-// alternan altura); cada fila baja 110px y se corre a la izquierda siguiendo la perspectiva.
-function isoSpread(zone: ZoneId, index: number) {
+// Reparte todas las cajas de la zona dentro del ambiente: si hay muchas, achica el paso
+// para que entren sin tapar la sala de al lado.
+function isoSpread(zone: ZoneId, index: number, total: number) {
   const z = ZONES[zone];
-  const col = index % z.cols;
-  const row = Math.floor(index / z.cols);
+  const cols = zone === "pending" && total > 12 ? 3 : z.cols;
+  const rows = Math.max(1, Math.ceil(total / cols));
+  const colStep = Math.min(200, Math.max(128, (z.right - z.x) / Math.max(cols - 1, 1)));
+  const rowStep = Math.min(108, Math.max(62, (z.bottom - z.y) / Math.max(rows - 1, 1)));
+  const col = index % cols;
+  const row = Math.floor(index / cols);
   return {
-    x: z.x + col * 200 - row * 22,
-    y: z.y + row * 110 + col * 8,
+    x: z.x + col * colStep - row * 14,
+    y: z.y + row * rowStep + col * 6,
     stagger: col % 2 === 1,
   };
 }
@@ -129,11 +132,12 @@ export function assignSlots(orders: MonitorOrder[]) {
   (["pending", "production", "ready_dispatch", "delivered"] as ZoneId[]).forEach((zone) => {
     const cap = ZONES[zone].cap;
     const list = [...buckets[zone]].sort(sortForScene);
+    const visible = Math.min(list.length, cap);
     list.forEach((order, i) => {
       if (i < cap) {
-        push(order.id, { ...isoSpread(zone, i), zone, kind: "crate", overflow: false });
+        push(order.id, { ...isoSpread(zone, i, visible), zone, kind: "crate", overflow: false });
       } else if (i === cap) {
-        push(order.id, { ...isoSpread(zone, cap), zone, kind: "crate", overflow: true, extra: list.length - cap });
+        push(order.id, { ...isoSpread(zone, cap, visible), zone, kind: "crate", overflow: true, extra: list.length - cap });
       }
     });
     const extra = Math.max(0, list.length - cap);

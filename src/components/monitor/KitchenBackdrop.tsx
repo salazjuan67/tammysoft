@@ -115,8 +115,8 @@ export function KitchenBackdrop({ calm }: { calm: boolean }) {
       {FRIDGE.xs.map((fx) => (
         <Vitrina key={fx} x={fx} y={FRIDGE.y} w={FRIDGE.w} h={FRIDGE.h} headH={FRIDGE.headH} glow={!calm} />
       ))}
-      <IsoTable x={1430} y={700} w={320} d={120} h={38} top="#e6d2f4" left="#b894d0" right="#d8c0ea" edge="#a27fc0" />
-      <IsoTable x={1810} y={700} w={320} d={120} h={38} top="#d7f0e0" left="#8fc9a8" right="#c5e8d2" edge="#7cb894" />
+      <IsoTable x={1430} y={860} w={320} d={110} h={34} top="#e6d2f4" left="#b894d0" right="#d8c0ea" edge="#a27fc0" />
+      <IsoTable x={1800} y={860} w={320} d={110} h={34} top="#d7f0e0" left="#8fc9a8" right="#c5e8d2" edge="#7cb894" />
       <g>
         <rect x="2110" y="940" width="46" height="60" rx="6" fill="#efe9e4" stroke="#d3cbc3" />
         <rect x="2118" y="947" width="30" height="20" rx="3" fill="#cfe6ee" />

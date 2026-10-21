@@ -15,7 +15,7 @@ const ITEMS: Array<{ key: MonitorFilter; label: string; icon: typeof ClipboardLi
 
 export function MonitorKpiBar({ kpis, filter, onFilter }: { kpis: MonitorKpis; filter: MonitorFilter; onFilter: (f: MonitorFilter) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2 px-5 py-3 lg:grid-cols-6">
+    <div className="grid grid-cols-3 gap-1.5 px-3 py-1.5 lg:grid-cols-6">
       {ITEMS.map((item) => {
         const count = item.key === "alerts" ? kpis.alerts : item.field ? kpis[item.field].orders : 0;
         const units = item.field ? kpis[item.field].units : undefined;
@@ -26,14 +26,14 @@ export function MonitorKpiBar({ kpis, filter, onFilter }: { kpis: MonitorKpis; f
             key={item.key}
             type="button"
             onClick={() => onFilter(active ? "all" : item.key)}
-            className={`glass flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition hover:-translate-y-0.5 ${active ? "ring-2 ring-offset-1" : ""}`}
+            className={`glass flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left transition hover:-translate-y-0.5 ${active ? "ring-2 ring-offset-1" : ""}`}
             style={active ? { ["--tw-ring-color" as string]: item.color } : undefined}
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: `${item.color}22`, color: item.color }}>
-              <Icon className="h-5 w-5" />
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ background: `${item.color}22`, color: item.color }}>
+              <Icon className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <AnimatedNumber value={count} className="block text-2xl font-bold leading-none text-[#3f2b25]" />
+              <AnimatedNumber value={count} className="block text-xl font-bold leading-none text-[#3f2b25]" />
               <span className="mt-0.5 block truncate text-[12px] text-[#6f5750]">
                 {item.label}{units != null ? <span className="text-[#9a837d]"> · {units} potes</span> : null}
               </span>
