@@ -347,32 +347,6 @@ export function KitchenBackdrop({
         right="#d9d2cb"
         edge="#a39b94"
       />
-      <g className={calm ? "" : "tammy-ops-mixer"}>
-        <rect
-          x={b - 165}
-          y="214"
-          width="86"
-          height="22"
-          rx="8"
-          fill="#f2b8c4"
-        />
-        <rect
-          x={b - 137}
-          y="180"
-          width="28"
-          height="44"
-          rx="8"
-          fill="#e38ea1"
-        />
-        <circle
-          cx={b - 123}
-          cy="252"
-          r="26"
-          fill="#f7f1ea"
-          stroke="#d6cbc0"
-          strokeWidth="3"
-        />
-      </g>
 
       {showCold && (
         <>

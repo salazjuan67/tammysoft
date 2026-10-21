@@ -114,10 +114,6 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 }
 .tammy-ops.tv .sector-tag { font-size: 14px; }
 
-.tammy-ops-mixer {
-  transform-origin: 50% 18%;
-  animation: ops-mix 2.8s ease-in-out infinite;
-}
 .tammy-ops-glow { animation: ops-glow 3.6s ease-in-out infinite; }
 .tammy-ops-steam { animation: ops-steam 4s ease-in-out infinite; }
 /* Persona caminando hacia otra estación: se desliza (transición de left/top) con un leve paso. */
@@ -255,9 +251,6 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes ops-mix {
-  0%, 100% { transform: rotate(-8deg); }
-  50% { transform: rotate(10deg); }
 }
 @keyframes ops-glow {
   0%, 100% { opacity: 0.45; }
@@ -282,13 +275,12 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tammy-ops-mixer, .tammy-ops-glow, .tammy-ops-steam, .tammy-ops-walk,
+  .tammy-ops-glow, .tammy-ops-steam, .tammy-ops-walk,
   .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
   .tammy-ops-chip[data-alert="true"].shelf-tag,
   .tammy-ops-chip[data-alert="true"] .slot-tag__dot { animation: none; }
   .tammy-ops-chip, .tammy-ops-crew { transition: none; }
 }
-.tammy-ops.calm .tammy-ops-mixer,
 .tammy-ops.calm .tammy-ops-glow,
 .tammy-ops.calm .tammy-ops-steam,
 .tammy-ops.calm .tammy-ops-walk,
