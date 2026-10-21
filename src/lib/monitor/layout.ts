@@ -2,30 +2,36 @@ import type { MonitorOrder } from "./types";
 import { ZONE_VISIBLE_CAP } from "./types";
 import { sceneStatus } from "./selectors";
 
-export const WORLD = { width: 1600, height: 900 };
+/**
+ * Mundo 2200×1100 dividido en tres ambientes por tabiques:
+ *  - Izquierda (x 0–520): mostrador de pedidos por hacer.
+ *  - Centro (x 520–1385): sala de producción, la más amplia porque es la que más se carga.
+ *  - Derecha (x 1385–2200): cámara con heladeras arriba, despacho y entregados abajo.
+ */
+export const WORLD = { width: 2200, height: 1100 };
 
 export type ZoneId = "pending" | "production" | "stored" | "ready_dispatch" | "delivered";
 
-export const ZONES: Record<ZoneId, { x: number; y: number; w: number; h: number; label: string; cols: number }> = {
-  pending: { x: 110, y: 500, w: 420, h: 220, label: "Por hacer", cols: 3 },
-  production: { x: 540, y: 262, w: 380, h: 200, label: "Producción", cols: 3 },
-  stored: { x: 1030, y: 210, w: 500, h: 260, label: "Heladeras", cols: 3 },
-  ready_dispatch: { x: 520, y: 572, w: 400, h: 200, label: "Despacho", cols: 3 },
-  delivered: { x: 1020, y: 620, w: 460, h: 200, label: "Entregados hoy", cols: 3 },
+export const ZONES: Record<ZoneId, { x: number; y: number; label: string; cols: number; cap: number }> = {
+  pending: { x: 110, y: 600, label: "Por hacer", cols: 2, cap: ZONE_VISIBLE_CAP },
+  production: { x: 620, y: 330, label: "Producción", cols: 4, cap: 16 },
+  stored: { x: 1440, y: 210, label: "Heladeras", cols: 3, cap: ZONE_VISIBLE_CAP },
+  ready_dispatch: { x: 1450, y: 660, label: "Despacho", cols: 2, cap: ZONE_VISIBLE_CAP },
+  delivered: { x: 1820, y: 660, label: "Entregados hoy", cols: 2, cap: ZONE_VISIBLE_CAP },
 };
 
 /** `stagger` alterna la altura de la etiqueta entre columnas vecinas para que no se pisen. */
 export type SlotPos = { x: number; y: number; zone: ZoneId; overflow: boolean; stagger: boolean };
 
-// Paso horizontal amplio para que las etiquetas (≈150px) no se pisen entre columnas;
-// cada fila baja 56px y se corre a la izquierda para seguir la perspectiva isométrica.
+// Paso horizontal de 200 (las etiquetas escaladas miden ≈240px, pero las columnas vecinas
+// alternan altura); cada fila baja 84px y se corre a la izquierda siguiendo la perspectiva.
 function isoSpread(zone: ZoneId, index: number) {
   const z = ZONES[zone];
   const col = index % z.cols;
   const row = Math.floor(index / z.cols);
   return {
-    x: z.x + col * 140 - row * 22,
-    y: z.y + row * 56 + col * 8,
+    x: z.x + col * 200 - row * 22,
+    y: z.y + row * 84 + col * 8,
     stagger: col % 2 === 1,
   };
 }
@@ -35,14 +41,15 @@ function fridgeSlot(order: MonitorOrder, fallbackIndex: number) {
   const fridgeNum = Math.max(1, Math.min(3, parseInt(fridgeRaw.replace(/\D/g, ""), 10) || ((fallbackIndex % 3) + 1)));
   const shelfRaw = (order.placements[0]?.shelfId ?? "A").toUpperCase();
   const shelf = shelfRaw.startsWith("C") || shelfRaw === "3" ? 2 : shelfRaw.startsWith("B") || shelfRaw === "2" ? 1 : 0;
-  // Las heladeras del backdrop están en x=1028/1188/1348, y=188; cada estante cae en y+60+s*48.
-  // La caja mide 84×70 y su base está a ~62px del tope, así que la apoyamos sobre la línea del estante.
+  // Las heladeras del backdrop están en x=1440/1700/1960 (260 de paso, para que las etiquetas
+  // no se pisen), y=188; cada estante cae en y+60+s*48. La caja mide 84×70 y su base está a
+  // ~62px del tope, así que la apoyamos sobre la línea del estante.
   const origin = [
-    { x: 1044, y: 186 },
-    { x: 1204, y: 186 },
-    { x: 1364, y: 186 },
+    { x: 1456, y: 186 },
+    { x: 1716, y: 186 },
+    { x: 1976, y: 186 },
   ][fridgeNum - 1];
-  return { x: origin.x + (fallbackIndex % 2) * 4, y: origin.y + shelf * 48, stagger: fridgeNum === 2 };
+  return { x: origin.x + (fallbackIndex % 2) * 4, y: origin.y + shelf * 48, stagger: false };
 }
 
 export function sortForScene(a: MonitorOrder, b: MonitorOrder) {
@@ -74,14 +81,15 @@ export function assignSlots(orders: MonitorOrder[]) {
 
   const positions = new Map<string, SlotPos[]>();
   (Object.keys(buckets) as ZoneId[]).forEach((zone) => {
+    const cap = ZONES[zone].cap;
     const list = [...buckets[zone]].sort(sortForScene);
     list.forEach((order, i) => {
-      const overflow = i >= ZONE_VISIBLE_CAP;
-      const idx = overflow ? ZONE_VISIBLE_CAP : i;
+      const overflow = i >= cap;
+      const idx = overflow ? cap : i;
       const pos = zone === "stored" && !overflow ? fridgeSlot(order, i) : isoSpread(zone, idx);
       const arr = positions.get(order.id) ?? [];
-      if (!overflow || i === ZONE_VISIBLE_CAP) {
-        arr.push({ ...pos, zone, overflow: overflow && i === ZONE_VISIBLE_CAP });
+      if (!overflow || i === cap) {
+        arr.push({ ...pos, zone, overflow: overflow && i === cap });
       }
       positions.set(order.id, arr);
     });
@@ -89,7 +97,7 @@ export function assignSlots(orders: MonitorOrder[]) {
 
   const overflowByZone: Partial<Record<ZoneId, number>> = {};
   (Object.keys(buckets) as ZoneId[]).forEach((zone) => {
-    const extra = Math.max(0, buckets[zone].length - ZONE_VISIBLE_CAP);
+    const extra = Math.max(0, buckets[zone].length - ZONES[zone].cap);
     if (extra) overflowByZone[zone] = extra;
   });
 

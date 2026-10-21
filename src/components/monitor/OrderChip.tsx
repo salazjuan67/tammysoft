@@ -74,7 +74,7 @@ export function OrderChip({
           className="slot-tag absolute left-1/2 top-0"
           style={{
             transformOrigin: "50% 100%",
-            transform: `translate(-50%, calc(-100% - ${slot.stagger ? 38 : 4}px)) scale(${labelScale})`,
+            transform: `translate(-50%, calc(-100% - ${slot.stagger ? 46 : 4}px)) scale(${labelScale})`,
           }}
         >
           <span className="slot-tag__dot" />

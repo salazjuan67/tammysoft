@@ -17,11 +17,11 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
 };
 
 const TAG_POS: Record<ZoneId, { x: number; y: number }> = {
-  pending: { x: 96, y: 388 },
-  production: { x: 520, y: 150 },
-  stored: { x: 1028, y: 86 },
-  ready_dispatch: { x: 506, y: 496 },
-  delivered: { x: 1000, y: 512 },
+  pending: { x: 96, y: 470 },
+  production: { x: 590, y: 198 },
+  stored: { x: 1440, y: 96 },
+  ready_dispatch: { x: 1430, y: 556 },
+  delivered: { x: 1810, y: 556 },
 };
 
 export function KitchenScene({

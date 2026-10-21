@@ -2,18 +2,45 @@ import { buildSnapshot } from "./buildSnapshot";
 import type { PedidoFuente } from "./adapter";
 import { fechaKey } from "./time";
 
+const CLIENTES = ["Dietética Sur", "Café Lirios", "Diet. Belgrano", "Eventos BA", "Empresa XY", "Colegio Norte", "Palermo Shop", "Almacén Rosa"];
+const FINALES = ["Carla", "Sofía", "Mariana", "Lucía", "Martín", "Valeria", "Paula M.", "San Isidro", "Gonzalo", "Inés", "Tomás", "Romina"];
+const PRODUCTOS: Array<[string, string]> = [
+  ["Mousse chocolate", "Mousse"], ["Cheesecake", "Tortas"], ["Marroc", "Mousse"], ["Bon o bon", "Mousse"],
+  ["Nutella", "Mousse"], ["Oreo", "Mousse"], ["Chocolate suizo", "Mousse"], ["Lemon pie", "Tortas"],
+];
+const RANGOS = ["H7_8", "H9_10", "H10_12", "H12_14", "H14_16", "H16_18"];
+
+/** Día cargado de ejemplo: 5 por hacer, 12 en producción, 6 en heladera, 7 entregados. */
 export function demoSnapshot(fecha = fechaKey()) {
   const base = `${fecha}T12:00:00.000-03:00`;
-  const pedidos: PedidoFuente[] = [
-    { id: "demo-pend-1", estado: "PENDIENTE", fechaEntrega: `${fecha}T00:00:00.000Z`, rangoHorario: "H16_18", notas: "Carla", createdAt: base, cliente: { nombre: "Dietética Sur" }, items: [{ cantidad: 8, producto: { nombre: "Mousse chocolate", categoria: { nombre: "Mousse" } } }] },
-    { id: "demo-pend-2", estado: "PENDIENTE", fechaEntrega: `${fecha}T00:00:00.000Z`, rangoHorario: "H14_16", notas: "Sofía", createdAt: base, cliente: { nombre: "Café Lirios" }, items: [{ cantidad: 12, producto: { nombre: "Cheesecake", categoria: { nombre: "Tortas" } } }] },
-    { id: "demo-prod-1", estado: "EN_PRODUCCION", fechaEntrega: `${fecha}T00:00:00.000Z`, fechaProduccion: base, rangoHorario: "H12_14", notas: "Mariana", createdAt: base, cliente: { nombre: "Diet. Belgrano" }, items: [{ cantidad: 12, producto: { nombre: "Mousse", categoria: { nombre: "Mousse" } } }, { cantidad: 8, producto: { nombre: "Cheesecake", categoria: { nombre: "Tortas" } } }] },
-    { id: "demo-prod-2", estado: "EN_PRODUCCION", fechaEntrega: `${fecha}T00:00:00.000Z`, fechaProduccion: base, rangoHorario: "H16_18", notas: "Lucía", createdAt: base, cliente: { nombre: "Eventos BA" }, items: [{ cantidad: 20, producto: { nombre: "Marroc", categoria: { nombre: "Mousse" } } }] },
-    { id: "demo-store-1", estado: "EN_PRODUCCION", fechaEntrega: `${fecha}T00:00:00.000Z`, fechaProduccion: base, rangoHorario: "H16_18", numeroHeladera: "1", estante: "A", notas: "Martín", createdAt: base, cliente: { nombre: "Diet. Belgrano" }, items: [{ cantidad: 10, producto: { nombre: "Bon o bon", categoria: { nombre: "Mousse" } } }] },
-    { id: "demo-store-2", estado: "EN_PRODUCCION", fechaEntrega: `${fecha}T00:00:00.000Z`, fechaProduccion: base, rangoHorario: "H12_14", numeroHeladera: "2", estante: "B", notas: "Valeria", createdAt: base, cliente: { nombre: "Empresa XY" }, items: [{ cantidad: 16, producto: { nombre: "Nutella", categoria: { nombre: "Mousse" } } }] },
-    { id: "demo-del-1", estado: "ENTREGADO", fechaEntrega: `${fecha}T00:00:00.000Z`, rangoHorario: "H9_10", notas: "Paula M.", createdAt: base, updatedAt: base, cliente: { nombre: "Colegio Norte" }, items: [{ cantidad: 6, producto: { nombre: "Oreo", categoria: { nombre: "Mousse" } } }] },
-    { id: "demo-del-2", estado: "ENTREGADO", fechaEntrega: `${fecha}T00:00:00.000Z`, rangoHorario: "H7_8", notas: "San Isidro", createdAt: base, updatedAt: base, cliente: { nombre: "Palermo Shop" }, items: [{ cantidad: 4, producto: { nombre: "Chocolate suizo", categoria: { nombre: "Mousse" } } }] },
-  ];
+  const fechaEntrega = `${fecha}T00:00:00.000Z`;
+  const pedidos: PedidoFuente[] = [];
+  let n = 0;
+  const push = (estado: PedidoFuente["estado"], extra: Partial<PedidoFuente> = {}) => {
+    const i = n++;
+    const [nombre, categoria] = PRODUCTOS[i % PRODUCTOS.length];
+    const [nombre2, categoria2] = PRODUCTOS[(i + 3) % PRODUCTOS.length];
+    pedidos.push({
+      id: `demo-${estado.toLowerCase()}-${i}`,
+      estado,
+      fechaEntrega,
+      rangoHorario: RANGOS[i % RANGOS.length],
+      notas: FINALES[i % FINALES.length],
+      createdAt: base,
+      cliente: { nombre: CLIENTES[i % CLIENTES.length] },
+      items: [
+        { cantidad: 4 + (i % 5) * 4, producto: { nombre, categoria: { nombre: categoria } } },
+        ...(i % 3 === 0 ? [{ cantidad: 6, producto: { nombre: nombre2, categoria: { nombre: categoria2 } } }] : []),
+      ],
+      ...extra,
+    });
+  };
+
+  for (let i = 0; i < 5; i++) push("PENDIENTE");
+  for (let i = 0; i < 12; i++) push("EN_PRODUCCION", { fechaProduccion: base });
+  for (let i = 0; i < 6; i++) push("EN_PRODUCCION", { fechaProduccion: base, numeroHeladera: String((i % 3) + 1), estante: ["A", "B", "C"][Math.floor(i / 3) % 3] });
+  for (let i = 0; i < 7; i++) push("ENTREGADO", { updatedAt: base });
+
   const snap = buildSnapshot(pedidos, fecha);
   return { ...snap, demo: true as const };
 }
