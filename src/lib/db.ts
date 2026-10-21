@@ -8,6 +8,8 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,
+    // El pooler de Supabase en modo sesión admite 15 clientes en total (servidor + workers del build).
+    max: Number(process.env.DATABASE_POOL_MAX ?? 5),
   });
 
   return new PrismaClient({
