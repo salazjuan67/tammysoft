@@ -76,9 +76,13 @@ const HAIR = ["#6b4a3a", "#2f2420", "#b9814f", "#8a5a3c", "#3d2b24"];
  * Figura de ambiente vista de espaldas, trabajando hacia la mesa. `x,y` = pies.
  * Es decorativa: no representa personal real ni asignaciones.
  */
-export function IsoWorker({ x, y, accent, variant = 0, courier = false, walking = false }: {
+export function IsoWorker({ x, y, accent, variant = 0, courier = false, walking = false, working = false }: {
   x: number; y: number; accent: string; variant?: number; courier?: boolean; walking?: boolean;
+  /** Mueve los brazos sobre la mesa mientras está parado en su estación. */
+  working?: boolean;
 }) {
+  const arm = working && !walking ? "tammy-ops-arm" : "";
+  const delay = `${(variant % 4) * -0.7}s`;
   const hair = HAIR[variant % HAIR.length];
   const jacket = courier ? accent : "#ffffff";
   return (
@@ -89,8 +93,12 @@ export function IsoWorker({ x, y, accent, variant = 0, courier = false, walking 
       <rect x="2" y="-36" width="10" height="36" rx="4" fill="#3f322e" />
       <ellipse cx="-7" cy="0" rx="8" ry="4" fill="#2a201d" />
       <ellipse cx="7" cy="0" rx="8" ry="4" fill="#2a201d" />
-      <rect x="-29" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(24 -23 -80)" />
-      <rect x="18" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(-24 23 -80)" />
+      <g className={arm} style={{ animationDelay: delay }}>
+        <rect x="-29" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(24 -23 -80)" />
+      </g>
+      <g className={arm && `${arm} tammy-ops-arm--r`} style={{ animationDelay: delay }}>
+        <rect x="18" y="-84" width="11" height="34" rx="5.5" fill={jacket} stroke="#e3d3cc" transform="rotate(-24 23 -80)" />
+      </g>
       <rect x="-21" y="-88" width="42" height="58" rx="15" fill={jacket} stroke={courier ? "rgba(0,0,0,.12)" : "#e3d3cc"} />
       {!courier && (
         <>

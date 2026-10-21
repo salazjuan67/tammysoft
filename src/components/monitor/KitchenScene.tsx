@@ -212,7 +212,7 @@ export function KitchenScene({
               viewBox="-40 -140 80 150"
               aria-hidden
             >
-              <IsoWorker x={0} y={0} accent={w.accent} courier={w.courier} variant={i} walking={w.walking} />
+              <IsoWorker x={0} y={0} accent={w.accent} courier={w.courier} variant={i} walking={w.walking} working={!calm} />
             </svg>
           ))}
           {orders.flatMap((order, i) => {

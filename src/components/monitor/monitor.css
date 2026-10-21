@@ -119,6 +119,16 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 /* Persona caminando hacia otra estación: se desliza (transición de left/top) con un leve paso. */
 .tammy-ops-crew { transition: left 2.6s ease-in-out, top 2.6s ease-in-out; }
 .tammy-ops-walk { animation: ops-walk 0.42s ease-in-out infinite; }
+.tammy-ops-arm {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: ops-arm 1.6s ease-in-out infinite;
+}
+.tammy-ops-arm--r { animation-direction: alternate-reverse; }
+@keyframes ops-arm {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-8deg) translateY(-3px); }
+}
 @keyframes ops-walk {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
@@ -274,7 +284,7 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tammy-ops-glow, .tammy-ops-steam, .tammy-ops-walk,
+  .tammy-ops-glow, .tammy-ops-steam, .tammy-ops-walk, .tammy-ops-arm,
   .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
   .tammy-ops-chip[data-alert="true"].shelf-tag,
   .tammy-ops-chip[data-alert="true"] .slot-tag__dot { animation: none; }
@@ -283,6 +293,7 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
 .tammy-ops.calm .tammy-ops-glow,
 .tammy-ops.calm .tammy-ops-steam,
 .tammy-ops.calm .tammy-ops-walk,
+.tammy-ops.calm .tammy-ops-arm,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"].shelf-tag,
 .tammy-ops.calm .tammy-ops-chip[data-alert="true"] .slot-tag__dot { animation: none; }
