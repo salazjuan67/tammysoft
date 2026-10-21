@@ -4,13 +4,14 @@ import type { MonitorOrder } from "@/lib/monitor/types";
 import { sceneStatus } from "@/lib/monitor/selectors";
 import type { SlotPos } from "@/lib/monitor/layout";
 import { WORLD } from "@/lib/monitor/layout";
+import { IsoCrate } from "./Iso";
 
-const TINT: Record<string, string> = {
-  pending: "bg-[#f8d5d8] border-[#e8919c]",
-  production: "bg-[#f6e0b8] border-[#e0b45a]",
-  stored: "bg-[#d5eef4] border-[#7eb9c8]",
-  ready_dispatch: "bg-[#e4d7f6] border-[#a888d4]",
-  delivered: "bg-[#d4eedd] border-[#7cbc93]",
+const CRATE: Record<string, { fill: string; side: string; tag: string }> = {
+  pending: { fill: "#f4c4b0", side: "#d4927c", tag: "bg-rose-100 text-rose-800" },
+  production: { fill: "#f3d7a4", side: "#d4ae62", tag: "bg-amber-100 text-amber-900" },
+  stored: { fill: "#cfe8f2", side: "#86b7c8", tag: "bg-sky-100 text-sky-900" },
+  ready_dispatch: { fill: "#ddd0f2", side: "#a48bc8", tag: "bg-violet-100 text-violet-900" },
+  delivered: { fill: "#c8e8d4", side: "#7db894", tag: "bg-emerald-100 text-emerald-900" },
 };
 
 export function OrderChip({
@@ -33,6 +34,7 @@ export function OrderChip({
   onSelect: (id: string) => void;
 }) {
   const zone = slot.zone === "ready_dispatch" ? "ready_dispatch" : sceneStatus(order);
+  const crate = CRATE[zone] ?? CRATE.pending;
   const name = tv
     ? (order.endCustomerName ?? order.customerName).split(" ")[0]
     : (order.endCustomerName ?? order.customerName);
@@ -41,7 +43,7 @@ export function OrderChip({
       <button
         type="button"
         onClick={() => onSelect("__overflow_" + slot.zone)}
-        className="absolute rounded-xl border border-dashed border-rose-300 bg-white/80 px-2 py-1 text-[11px] font-semibold text-rose-700"
+        className="absolute rounded-full bg-white/90 px-2 py-1 text-[11px] font-bold text-rose-700 shadow"
         style={{ left: `${(slot.x / WORLD.width) * 100}%`, top: `${(slot.y / WORLD.height) * 100}%` }}
       >
         + más
@@ -54,12 +56,16 @@ export function OrderChip({
       data-selected={selected}
       data-alert={alert}
       onClick={() => onSelect(order.id)}
-      className={`tammy-ops-chip absolute w-[108px] rounded-xl border px-2 py-1.5 text-left shadow-md ${TINT[zone] ?? TINT.pending} ${dimmed ? "opacity-35" : "opacity-100"} ${tv ? "w-[128px] py-2" : ""} ${entering ? "animate-[ops-in_350ms_ease]" : ""}`}
-      style={{ left: `${(slot.x / WORLD.width) * 100}%`, top: `${(slot.y / WORLD.height) * 100}%` }}
+      className={`tammy-ops-chip absolute w-[86px] text-left ${dimmed ? "opacity-30" : "opacity-100"} ${entering ? "animate-[ops-in_350ms_ease]" : ""}`}
+      style={{ left: `${(slot.x / WORLD.width) * 100}%`, top: `${(slot.y / WORLD.height) * 100}%`, zIndex: selected ? 20 : 5 }}
     >
-      <span className="block font-bold leading-none text-[#4a342c]">{order.code}</span>
-      <span className="mt-0.5 block truncate text-[11px] text-[#6b4b44]">{name}</span>
-      <span className="block text-[10px] font-semibold text-[#8b5e4a]">{order.unitsOrdered} u.</span>
+      <IsoCrate fill={crate.fill} side={crate.side} />
+      <span className={`absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold shadow ${crate.tag} ${tv ? "text-[12px]" : ""}`}>
+        {order.code} · {name}
+      </span>
+      {zone === "delivered" && (
+        <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-[9px] text-white">✓</span>
+      )}
     </button>
   );
 }

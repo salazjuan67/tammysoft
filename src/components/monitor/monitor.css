@@ -7,7 +7,7 @@
   --ops-lilac: #c9b8e8;
   --ops-mint: #b8e0c8;
   --ops-ink: #4a342c;
-  background: linear-gradient(180deg, #fff7f4 0%, #f6ebe4 100%);
+  background: #fff5f2;
   color: var(--ops-ink);
 }
 

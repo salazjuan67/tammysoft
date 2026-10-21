@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
-import { assignSlots, WORLD, ZONES, type ZoneId } from "@/lib/monitor/layout";
+import { assignSlots, type ZoneId } from "@/lib/monitor/layout";
 import { KitchenBackdrop } from "./KitchenBackdrop";
 import { OrderChip } from "./OrderChip";
 
@@ -39,7 +39,7 @@ export function KitchenScene({
 
   return (
     <div
-      className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-[#f0ddd4] bg-[#fbf4ee] shadow-inner"
+      className="relative min-h-0 flex-1 overflow-hidden rounded-[28px] border border-rose-100 bg-[#f8e6dc] shadow-[inset_0_1px_0_rgba(255,255,255,.6)]"
       onWheel={onWheel}
       onPointerDown={(e) => {
         if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
@@ -56,24 +56,11 @@ export function KitchenScene({
       onPointerLeave={() => { drag.current = null; }}
     >
       <div
-        className="absolute inset-0 origin-center"
+        className="absolute inset-0 grid origin-center place-items-center"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
       >
+        <div className="relative aspect-[16/9] h-full max-w-full">
         <KitchenBackdrop calm={calm} />
-        <div className="pointer-events-none absolute inset-0">
-          {(Object.keys(ZONES) as ZoneId[]).map((zone) => (
-            <div
-              key={zone}
-              className="absolute text-[11px] font-bold uppercase tracking-wide text-[#7a5550]/80"
-              style={{
-                left: `${(ZONES[zone].x / WORLD.width) * 100}%`,
-                top: `${((ZONES[zone].y - 18) / WORLD.height) * 100}%`,
-              }}
-            >
-              {ZONES[zone].label}
-            </div>
-          ))}
-        </div>
         <div className="absolute inset-0">
           {orders.map((order) => {
             const slots = positions.get(order.id);
@@ -102,6 +89,7 @@ export function KitchenScene({
               />
             ));
           })}
+        </div>
         </div>
       </div>
       <div className="absolute bottom-3 right-3 z-10 flex gap-1">

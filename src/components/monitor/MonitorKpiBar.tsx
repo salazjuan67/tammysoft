@@ -2,13 +2,13 @@
 
 import type { MonitorFilter, MonitorKpis } from "@/lib/monitor/types";
 
-const ITEMS: Array<{ key: MonitorFilter; label: string; color: string; field?: keyof Omit<MonitorKpis, "alerts"> }> = [
-  { key: "pending", label: "Pendientes", color: "bg-[#f8d5d8] text-[#8a3d4a]", field: "pending" },
-  { key: "production", label: "En producción", color: "bg-[#f6e0b8] text-[#7a5a18]", field: "production" },
-  { key: "stored", label: "Heladera", color: "bg-[#d5eef4] text-[#2f6d7c]", field: "stored" },
-  { key: "ready_dispatch", label: "Despacho", color: "bg-[#e4d7f6] text-[#5b3d86]", field: "ready_dispatch" },
-  { key: "delivered", label: "Entregados", color: "bg-[#d4eedd] text-[#2f6b45]", field: "delivered" },
-  { key: "alerts", label: "Alertas", color: "bg-[#fde2e0] text-[#9b2c2c]" },
+const ITEMS: Array<{ key: MonitorFilter; label: string; wrap: string; field?: keyof Omit<MonitorKpis, "alerts"> }> = [
+  { key: "pending", label: "Pendientes", wrap: "bg-[#fde8e8] text-[#b04a5a]", field: "pending" },
+  { key: "production", label: "En producción", wrap: "bg-[#fff0d4] text-[#b07a1c]", field: "production" },
+  { key: "stored", label: "Heladera", wrap: "bg-[#e4f4fa] text-[#2f7d92]", field: "stored" },
+  { key: "ready_dispatch", label: "Despacho", wrap: "bg-[#efe6fb] text-[#6b4aa8]", field: "ready_dispatch" },
+  { key: "delivered", label: "Entregados", wrap: "bg-[#e3f6ea] text-[#2f8a52]", field: "delivered" },
+  { key: "alerts", label: "Alertas", wrap: "bg-[#fde4e2] text-[#c0392b]" },
 ];
 
 export function MonitorKpiBar({
@@ -21,7 +21,7 @@ export function MonitorKpiBar({
   onFilter: (f: MonitorFilter) => void;
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto px-4 pb-2">
+    <div className="flex gap-2 overflow-x-auto px-5 py-3">
       {ITEMS.map((item) => {
         const count = item.key === "alerts" ? kpis.alerts : item.field ? kpis[item.field].orders : 0;
         const units = item.field ? kpis[item.field].units : undefined;
@@ -31,11 +31,13 @@ export function MonitorKpiBar({
             key={item.key}
             type="button"
             onClick={() => onFilter(active ? "all" : item.key)}
-            className={`min-w-[132px] rounded-2xl px-4 py-3 text-left shadow-sm transition ${item.color} ${active ? "ring-2 ring-[#c45b72]" : ""}`}
+            className={`flex min-w-[140px] items-center gap-3 rounded-2xl px-4 py-2.5 text-left shadow-sm transition ${item.wrap} ${active ? "ring-2 ring-pink-400 ring-offset-2" : ""}`}
           >
-            <p className="text-[11px] font-medium opacity-80">{item.label}</p>
-            <p className="text-2xl font-bold leading-tight">{count}</p>
-            {units != null && <p className="text-[10px] opacity-70">{units} potes</p>}
+            <span className="text-3xl font-bold leading-none">{count}</span>
+            <span>
+              <span className="block text-sm font-semibold">{item.label}</span>
+              {units != null && <span className="text-[11px] opacity-70">{units} potes</span>}
+            </span>
           </button>
         );
       })}
