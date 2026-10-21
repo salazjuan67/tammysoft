@@ -5,7 +5,8 @@ import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomO
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
-import { KitchenBackdrop } from "./KitchenBackdrop";
+import { crewSpots, KitchenBackdrop } from "./KitchenBackdrop";
+import { IsoWorker } from "./Iso";
 import { OrderChip } from "./OrderChip";
 import { STATUS_META } from "./ui";
 
@@ -63,6 +64,11 @@ export function KitchenScene({
   // Redondeado para no recalcular el armado en cada píxel de un resize.
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 20) / 20;
   const { positions, buckets, perFridge, layout } = useMemo(() => assignSlots(orders, aspect, focusProduction), [orders, aspect, focusProduction]);
+  const crew = crewSpots(layout, {
+    pending: buckets.pending.length,
+    production: buckets.production.length,
+    dispatch: buckets.ready_dispatch.length,
+  });
   const currentRango = currentAndNextRangos().current;
   const [labels, setLabels] = useState(true);
   const fit = Math.min(size.width / layout.width, size.height / layout.height);
@@ -138,11 +144,7 @@ export function KitchenScene({
           transition: dragging ? "none" : "transform 160ms ease",
         }}
       >
-        <KitchenBackdrop
-          calm={calm}
-          layout={layout}
-          crew={{ pending: buckets.pending.length, production: buckets.production.length, dispatch: buckets.ready_dispatch.length }}
-        />
+        <KitchenBackdrop calm={calm} layout={layout} />
 
         <div className="pointer-events-none absolute inset-0">
           {ZONE_ORDER.filter((zone) => !focusProduction || zone === "production").map((zone) => {
@@ -186,6 +188,19 @@ export function KitchenScene({
         </div>
 
         <div className="absolute inset-0">
+          {crew.map((w, i) => (
+            <svg
+              key={`crew-${i}`}
+              className="pointer-events-none absolute"
+              style={{ left: w.x - 40, top: w.y - 140, zIndex: Math.round(w.y / 4) }}
+              width="80"
+              height="150"
+              viewBox="-40 -140 80 150"
+              aria-hidden
+            >
+              <IsoWorker x={0} y={0} accent={w.accent} courier={w.courier} variant={i} animate={!calm} />
+            </svg>
+          ))}
           {orders.flatMap((order, i) => {
             const slots = positions.get(order.id);
             if (!slots) return [];

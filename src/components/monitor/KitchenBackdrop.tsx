@@ -1,19 +1,48 @@
 import { WALL_Y, type SceneLayout } from "@/lib/monitor/layout";
-import { IsoPlant, IsoShelf, IsoTable, IsoWorker, Vitrina } from "./Iso";
+import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 
 /** Pedidos por persona dibujada en cada ambiente (solo ambientación, no es dotación real). */
 const ORDERS_PER_WORKER = { pending: 4, production: 3 };
 
 export type Crew = { pending: number; production: number; dispatch: number };
+export type CrewSpot = { x: number; y: number; accent: string; courier?: boolean };
+
+/** Dónde pararse frente a cada mesa; `y` = pies, usado también para ordenar en profundidad con las cajas. */
+export function crewSpots(layout: SceneLayout, crew: Crew): CrewSpot[] {
+  const { width: W, rooms, zones, coldSplitX } = layout;
+  const [, a] = rooms.pending;
+  const [, b] = rooms.production;
+  const prodTableW = Math.max(300, b - a - 120 - 130 * 0.72);
+  const pendingTableW = Math.max(220, a - 110 - 150 * 0.72);
+  const dispatchTableW = Math.max(200, coldSplitX - b - 70 - 110 * 0.72);
+  const lowerTableY = zones.ready_dispatch.y + 40;
+  const showPending = a >= 400;
+  const showCold = W - b >= 700;
+
+  const workers: CrewSpot[] = [];
+  const prodCount = Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production));
+  for (let i = 0; i < prodCount; i++) {
+    const table = i % 3;
+    const spot = Math.floor(i / 3);
+    workers.push({ x: a + 60 + prodTableW * (0.3 + spot * 0.45), y: 440 + table * 280, accent: "#e38ea1" });
+  }
+  if (showPending) {
+    const pendCount = Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending));
+    for (let i = 0; i < pendCount; i++) workers.push({ x: 50 + pendingTableW * 0.55, y: 665 + i * 300, accent: "#d7a68d" });
+  }
+  if (showCold && crew.dispatch > 0) {
+    workers.push({ x: b + 40 + dispatchTableW * 0.5, y: lowerTableY + 95, accent: "#a27fc0", courier: true });
+  }
+
+  return workers;
+}
 
 export function KitchenBackdrop({
   calm,
   layout,
-  crew,
 }: {
   calm: boolean;
   layout: SceneLayout;
-  crew: Crew;
 }) {
   const {
     width: W,
@@ -38,21 +67,6 @@ export function KitchenBackdrop({
   // En la vista Producción los otros ambientes quedan como bordes angostos y no llevan mobiliario.
   const showPending = a >= 400;
   const showCold = W - b >= 700;
-
-  const workers: { x: number; y: number; accent: string; courier?: boolean }[] = [];
-  const prodCount = Math.min(6, Math.ceil(crew.production / ORDERS_PER_WORKER.production));
-  for (let i = 0; i < prodCount; i++) {
-    const table = i % 3;
-    const spot = Math.floor(i / 3);
-    workers.push({ x: a + 60 + prodTableW * (0.3 + spot * 0.45), y: 440 + table * 280, accent: "#e38ea1" });
-  }
-  if (showPending) {
-    const pendCount = Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending));
-    for (let i = 0; i < pendCount; i++) workers.push({ x: 50 + pendingTableW * 0.55, y: 665 + i * 300, accent: "#d7a68d" });
-  }
-  if (showCold && crew.dispatch > 0) {
-    workers.push({ x: b + 40 + dispatchTableW * 0.5, y: lowerTableY + 95, accent: "#a27fc0", courier: true });
-  }
 
   return (
     <svg
@@ -419,10 +433,6 @@ export function KitchenBackdrop({
           />
         </>
       )}
-
-      {workers.map((w, i) => (
-        <IsoWorker key={i} x={w.x} y={w.y} accent={w.accent} courier={w.courier} variant={i} animate={!calm} />
-      ))}
 
       <IsoPlant x={30} y={1130} />
       <IsoPlant x={b - 40} y={1140} />
