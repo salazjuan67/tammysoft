@@ -6,14 +6,15 @@ export function IsoTable({
   return (
     <g>
       <ellipse cx={x + w / 2 + ox / 2} cy={y + h + 30} rx={w / 2 + ox / 2} ry={oy / 2 + 10} fill="#000" opacity="0.07" />
+      {/* Patas traseras antes que el tablero: quedan detrás, no encima del frente. */}
+      <line x1={x + ox + 12} y1={y + h - oy} x2={x + ox + 12} y2={y + h - oy + 28} stroke={left} strokeWidth="5" strokeLinecap="round" />
+      <line x1={x + w + ox - 14} y1={y + h - oy} x2={x + w + ox - 14} y2={y + h - oy + 28} stroke={right} strokeWidth="5" strokeLinecap="round" />
       <polygon points={`${x},${y + h} ${x + ox},${y + h - oy} ${x + ox},${y - oy} ${x},${y}`} fill={left} />
       <polygon points={`${x + w},${y + h} ${x + w + ox},${y + h - oy} ${x + w + ox},${y - oy} ${x + w},${y}`} fill={right} />
       <polygon points={`${x},${y + h} ${x + w},${y + h} ${x + w + ox},${y + h - oy} ${x + ox},${y + h - oy}`} fill={edge} />
       <polygon points={`${x},${y} ${x + w},${y} ${x + w + ox},${y - oy} ${x + ox},${y - oy}`} fill={top} stroke="rgba(255,255,255,.6)" strokeWidth="1.5" />
       <line x1={x + 18} y1={y + h} x2={x + 18} y2={y + h + 28} stroke={edge} strokeWidth="6" strokeLinecap="round" />
       <line x1={x + w - 10} y1={y + h} x2={x + w - 10} y2={y + h + 28} stroke={right} strokeWidth="6" strokeLinecap="round" />
-      <line x1={x + ox + 12} y1={y + h - oy} x2={x + ox + 12} y2={y + h - oy + 28} stroke={left} strokeWidth="5" strokeLinecap="round" />
-      <line x1={x + w + ox - 14} y1={y + h - oy} x2={x + w + ox - 14} y2={y + h - oy + 28} stroke={right} strokeWidth="5" strokeLinecap="round" />
     </g>
   );
 }

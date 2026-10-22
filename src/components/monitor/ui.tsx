@@ -7,7 +7,6 @@ export const STATUS_META: Record<string, { label: string; color: string; soft: s
   pending: { label: "Pendiente", color: "#e0707f", soft: "#fde8ea" },
   production: { label: "En producción", color: "#d99a2b", soft: "#fff1d6" },
   stored: { label: "En heladera", color: "#3f98b2", soft: "#e2f3f8" },
-  ready_dispatch: { label: "Despacho", color: "#8a66c9", soft: "#eee7fa" },
   delivered: { label: "Entregado", color: "#3fa36b", soft: "#e3f5ea" },
   cancelled: { label: "Cancelado", color: "#9a837d", soft: "#f1ecea" },
   unknown: { label: "Sin clasificar", color: "#9a837d", soft: "#f1ecea" },

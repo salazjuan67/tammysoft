@@ -2,7 +2,6 @@ export type MonitorStatus =
   | "pending"
   | "production"
   | "stored"
-  | "ready_dispatch"
   | "delivered"
   | "cancelled"
   | "unknown";
@@ -12,7 +11,6 @@ export type MonitorFilter =
   | "pending"
   | "production"
   | "stored"
-  | "ready_dispatch"
   | "delivered"
   | "alerts";
 
@@ -80,7 +78,6 @@ export type MonitorKpis = {
   pending: { orders: number; units: number };
   production: { orders: number; units: number };
   stored: { orders: number; units: number };
-  ready_dispatch: { orders: number; units: number };
   delivered: { orders: number; units: number };
   alerts: number;
 };
@@ -91,7 +88,6 @@ export type MonitorSnapshot = {
   locations: MonitorLocation[];
   kpis: MonitorKpis;
   alerts: MonitorAlert[];
-  dispatchHeuristic: string;
   timezone: string;
   serverTime: string;
   updatedAt: string;

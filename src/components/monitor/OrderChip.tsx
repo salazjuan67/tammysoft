@@ -11,7 +11,6 @@ const CRATE: Record<string, { fill: string; side: string }> = {
   pending: { fill: "#f6c9b7", side: "#d6957f" },
   production: { fill: "#f3d7a4", side: "#d4ae62" },
   stored: { fill: "#cfe8f2", side: "#86b7c8" },
-  ready_dispatch: { fill: "#ddd0f2", side: "#a48bc8" },
   delivered: { fill: "#c8e8d4", side: "#7db894" },
 };
 
@@ -47,7 +46,7 @@ export function OrderChip({
   labelScale: number;
   onSelect: (id: string) => void;
 }) {
-  const zone = slot.zone === "ready_dispatch" ? "ready_dispatch" : sceneStatus(order);
+  const zone = sceneStatus(order);
   const crate = CRATE[zone] ?? CRATE.pending;
   const accent = alert ? ALERT_COLOR : (STATUS_META[zone]?.color ?? STATUS_META.pending.color);
   const full = order.endCustomerName ?? order.customerName;

@@ -18,8 +18,6 @@ Mapeo:
 | ENTREGADO con `numeroHeladera` y sin `fechaRetiro` ("Listo en heladera" en Producción) | stored (Heladera): terminado, esperando retiro |
 | ENTREGADO con `fechaRetiro` (botón "Retirado" en Pedidos), o sin heladera | delivered (Entregados hoy) |
 | CANCELADO | no se muestra |
-| — | ready_dispatch: heurística, pedidos en heladera cuyo `rangoHorario` es el actual o el siguiente |
-
 El retiro se registra con el botón "Retirado" en Pedidos (`POST /api/pedidos/retiro`, guarda `fechaRetiro`; no cambia estado ni factura). Hasta entonces el pedido sigue en la heladera aunque su rango haya pasado.
 
 Unidades = suma de `items.cantidad` (potes).

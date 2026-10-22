@@ -8,7 +8,6 @@ const ROOMS: Array<{ key: string; name: string; text: string }> = [
   { key: "pending", name: "Pedidos", text: "Por hacer: todavía no empezó la producción." },
   { key: "production", name: "Producción", text: "En preparación en las mesas." },
   { key: "stored", name: "Heladera", text: "Listos, esperando que el cliente los retire (estante · código · cliente · potes)." },
-  { key: "ready_dispatch", name: "Despacho", text: "En heladera y se retiran en este horario o el siguiente." },
   { key: "delivered", name: "Entregados", text: "Ya retirados por el cliente (botón Retirado en Pedidos)." },
 ];
 

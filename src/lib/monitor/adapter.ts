@@ -1,6 +1,4 @@
 import type { MonitorLocation, MonitorOrder, MonitorStatus, MonitorTimelineEvent } from "./types";
-import { currentAndNextRangos } from "./time";
-
 export type PedidoFuente = {
   id: string;
   estado: string;
@@ -47,13 +45,7 @@ export function mapStatus(pedido: PedidoFuente): MonitorStatus {
   return "unknown";
 }
 
-export function isDispatchCandidate(pedido: PedidoFuente, now = new Date()) {
-  if (mapStatus(pedido) !== "stored") return false;
-  const { current, next } = currentAndNextRangos(now);
-  return pedido.rangoHorario === current || pedido.rangoHorario === next;
-}
-
-export function adaptOrder(pedido: PedidoFuente, now = new Date()): MonitorOrder {
+export function adaptOrder(pedido: PedidoFuente): MonitorOrder {
   const items = (pedido.items ?? []).map((item) => ({
     id: item.id,
     name: item.producto?.nombre ?? "Producto",
@@ -87,7 +79,7 @@ export function adaptOrder(pedido: PedidoFuente, now = new Date()): MonitorOrder
     code: orderCode(pedido.id),
     customerName: pedido.cliente?.nombre ?? "Cliente",
     endCustomerName: endCustomer,
-    status: isDispatchCandidate(pedido, now) ? "ready_dispatch" : status,
+    status,
     rawEstado: pedido.estado,
     rangoHorario: pedido.rangoHorario,
     deliveryAt: iso(pedido.fechaEntrega),

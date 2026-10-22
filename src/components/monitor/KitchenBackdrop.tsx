@@ -4,7 +4,7 @@ import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 /** Pedidos por persona dibujada en cada ambiente (solo ambientación, no es dotación real). */
 const ORDERS_PER_WORKER = { pending: 4, production: 3 };
 
-export type Crew = { pending: number; production: number; dispatch: number };
+export type Crew = { pending: number; production: number };
 export type CrewStation = { x: number; y: number };
 /**
  * Frente de una mesa donde pueden pararse personas: `y` = pies, `x0..x1` = tramo caminable.
@@ -24,15 +24,12 @@ export type CrewGroupWithStations = Omit<CrewGroup, "tables"> & {
 };
 
 export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
-  const { width: W, rooms, zones, coldSplitX } = layout;
+  const { rooms, tables } = layout;
   const [, a] = rooms.pending;
   const [, b] = rooms.production;
   const prodTableW = Math.max(300, b - a - 120 - 130 * 0.72);
   const pendingTableW = Math.max(220, a - 110 - 150 * 0.72);
-  const dispatchTableW = Math.max(200, coldSplitX - b - 70 - 110 * 0.72);
-  const lowerTableY = zones.ready_dispatch.y + 40;
   const showPending = a >= 400;
-  const showCold = W - b >= 700;
 
   const groups: CrewGroup[] = [
     {
@@ -52,24 +49,13 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
   if (showPending) {
     groups.push({
       key: "pending",
-      count: Math.min(2, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending)),
-      tables: [0, 1].map((t) => ({
-        y: 700 + t * 300,
+      count: Math.min(3, Math.ceil(crew.pending / ORDERS_PER_WORKER.pending)),
+      tables: tables.pending.map((ty) => ({
+        y: ty + 140,
         x0: 80,
         x1: 50 + pendingTableW + 30,
       })),
       accent: "#d7a68d",
-    });
-  }
-  if (showCold) {
-    groups.push({
-      key: "dispatch",
-      count: crew.dispatch > 0 ? 1 : 0,
-      tables: [
-        { y: lowerTableY + 130, x0: b + 80, x1: b + 40 + dispatchTableW + 30 },
-      ],
-      accent: "#a27fc0",
-      courier: true,
     });
   }
   return groups;
@@ -122,9 +108,8 @@ export function KitchenBackdrop({
     height: H,
     rooms,
     fridge,
-    zones,
-    coldSplitX,
     coldFloorY,
+    tables,
   } = layout;
   const [, a] = rooms.pending;
   const [, b] = rooms.production;
@@ -134,9 +119,7 @@ export function KitchenBackdrop({
   const shelfCount = Math.max(1, Math.floor((prodW - 300) / 300));
   const pendingTableW = Math.max(220, a - 110 - 150 * 0.72);
   const pizarraW = Math.min(300, a - 140);
-  const dispatchTableW = Math.max(200, coldSplitX - b - 70 - 110 * 0.72);
-  const deliveredTableW = Math.max(200, W - coldSplitX - 60 - 110 * 0.72);
-  const lowerTableY = zones.ready_dispatch.y + 40;
+  const deliveredTableW = Math.max(200, W - b - 70 - 110 * 0.72);
   // En la vista Producción los otros ambientes quedan como bordes angostos y no llevan mobiliario.
   const showPending = a >= 400;
   const showCold = W - b >= 700;
@@ -271,11 +254,11 @@ export function KitchenBackdrop({
 
       {showPending && (
         <>
-          {/* Pizarra de pedidos (ambiente izquierdo) */}
+          {/* Pizarra de pedidos, colgada arriba en la pared */}
           <g>
             <rect
-              x="100"
-              y="282"
+              x="60"
+              y="40"
               width={pizarraW}
               height="100"
               rx="10"
@@ -284,8 +267,8 @@ export function KitchenBackdrop({
               strokeWidth="6"
             />
             <text
-              x="120"
-              y="320"
+              x="80"
+              y="78"
               fill="#f7e6d8"
               fontFamily="Georgia, serif"
               fontSize="22"
@@ -296,10 +279,10 @@ export function KitchenBackdrop({
             {[0, 1].map((i) => (
               <line
                 key={i}
-                x1="120"
-                y1={342 + i * 20}
-                x2={100 + pizarraW * (0.55 + (i % 2) * 0.2)}
-                y2={342 + i * 20}
+                x1="80"
+                y1={100 + i * 20}
+                x2={60 + pizarraW * (0.55 + (i % 2) * 0.2)}
+                y2={100 + i * 20}
                 stroke="#8a7a72"
                 strokeWidth="3"
                 strokeLinecap="round"
@@ -308,27 +291,20 @@ export function KitchenBackdrop({
             ))}
           </g>
 
-          {/* Mostrador de pedidos por hacer */}
-          <IsoTable
-            x={50}
-            y={560}
-            w={pendingTableW}
-            d={150}
-            h={42}
-            top="#f6dcc0"
-            left="#c99a70"
-            right="#e6c29c"
-          />
-          <IsoTable
-            x={50}
-            y={860}
-            w={pendingTableW}
-            d={150}
-            h={42}
-            top="#f6dcc0"
-            left="#c99a70"
-            right="#e6c29c"
-          />
+          {/* Mostradores de pedidos por hacer */}
+          {tables.pending.map((ty) => (
+            <IsoTable
+              key={ty}
+              x={50}
+              y={ty}
+              w={pendingTableW}
+              d={150}
+              h={42}
+              top="#f6dcc0"
+              left="#c99a70"
+              right="#e6c29c"
+            />
+          ))}
         </>
       )}
 
@@ -403,7 +379,7 @@ export function KitchenBackdrop({
 
       {showCold && (
         <>
-          {/* Cámara fría: heladeras, mesas de despacho y entregas */}
+          {/* Cámara fría: heladeras y mesas de entregados */}
           <g>
             <rect
               x={W - 330}
@@ -454,28 +430,20 @@ export function KitchenBackdrop({
             rx="2"
             fill="#cfe2e8"
           />
-          <IsoTable
-            x={b + 40}
-            y={lowerTableY}
-            w={dispatchTableW}
-            d={110}
-            h={34}
-            top="#e6d2f4"
-            left="#b894d0"
-            right="#d8c0ea"
-            edge="#a27fc0"
-          />
-          <IsoTable
-            x={coldSplitX + 30}
-            y={lowerTableY}
-            w={deliveredTableW}
-            d={110}
-            h={34}
-            top="#d7f0e0"
-            left="#8fc9a8"
-            right="#c5e8d2"
-            edge="#7cb894"
-          />
+          {tables.delivered.map((ty) => (
+            <IsoTable
+              key={ty}
+              x={b + 40}
+              y={ty}
+              w={deliveredTableW}
+              d={110}
+              h={34}
+              top="#d7f0e0"
+              left="#8fc9a8"
+              right="#c5e8d2"
+              edge="#7cb894"
+            />
+          ))}
         </>
       )}
 

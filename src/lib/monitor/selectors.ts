@@ -5,8 +5,7 @@ function empty() {
   return { orders: 0, units: 0 };
 }
 
-export function sceneStatus(order: MonitorOrder): Exclude<MonitorStatus, "ready_dispatch"> {
-  if (order.status === "ready_dispatch") return "stored";
+export function sceneStatus(order: MonitorOrder): MonitorStatus {
   if (order.status === "unknown") return "pending";
   return order.status;
 }
@@ -14,8 +13,6 @@ export function sceneStatus(order: MonitorOrder): Exclude<MonitorStatus, "ready_
 export function matchesFilter(order: MonitorOrder, filter: MonitorFilter, alertOrderIds: Set<string>) {
   if (filter === "all") return order.status !== "cancelled";
   if (filter === "alerts") return alertOrderIds.has(order.id);
-  if (filter === "ready_dispatch") return order.status === "ready_dispatch";
-  if (filter === "stored") return sceneStatus(order) === "stored";
   return sceneStatus(order) === filter;
 }
 
@@ -24,7 +21,6 @@ export function computeKpis(orders: MonitorOrder[], alertCount: number): Monitor
     pending: empty(),
     production: empty(),
     stored: empty(),
-    ready_dispatch: empty(),
     delivered: empty(),
     alerts: alertCount,
   };
@@ -34,10 +30,6 @@ export function computeKpis(orders: MonitorOrder[], alertCount: number): Monitor
     if (zone === "pending" || zone === "production" || zone === "stored" || zone === "delivered") {
       kpis[zone].orders += 1;
       kpis[zone].units += order.unitsOrdered;
-    }
-    if (order.status === "ready_dispatch") {
-      kpis.ready_dispatch.orders += 1;
-      kpis.ready_dispatch.units += order.unitsOrdered;
     }
   }
   return kpis;

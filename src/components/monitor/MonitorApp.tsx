@@ -26,8 +26,7 @@ import "./monitor.css";
 const FOCUS_STATUS: Record<ZoneId, MonitorStatus[]> = {
   pending: ["pending"],
   production: ["production"],
-  stored: ["stored", "ready_dispatch"],
-  ready_dispatch: ["ready_dispatch"],
+  stored: ["stored"],
   delivered: ["delivered"],
 };
 const FOCUS_ZONES = Object.keys(FOCUS_STATUS) as ZoneId[];
@@ -153,7 +152,6 @@ export function MonitorApp() {
       pending: "pending",
       production: "production",
       stored: "stored",
-      ready_dispatch: "ready_dispatch",
       delivered: "delivered",
     };
     setFilter(map[zone]);
@@ -349,14 +347,10 @@ export function MonitorApp() {
       </div>
 
       {snapshot && view !== "list" && (
-        <div className="absolute bottom-6 left-3 z-20">
+        <div className="absolute bottom-3 left-3 z-20">
           <MonitorLegend />
         </div>
       )}
-      {snapshot && (
-        <p className="pointer-events-none absolute bottom-1 left-3 z-20 text-[10px] text-[#b59d97]">{snapshot.dispatchHeuristic}</p>
-      )}
-
       <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto">
         {snapshot && !showPanel && (
           <button

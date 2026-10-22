@@ -99,10 +99,10 @@ export const TUTORIALES: TutorialPantalla[] = [
       {
         titulo: "Leer el día",
         pasos: [
-          "Las tarjetas de arriba filtran la escena (pendiente, producción, heladera, despacho, entregados, alertas).",
+          "Las tarjetas de arriba (pendientes, producción, heladera, entregados) abren esa sección en grande; Alertas filtra la escena.",
           "Tocá una bandeja para ver cliente, productos y ubicación.",
-          "Producción agranda solo esa sala. Minimizar alertas deja el obrador a todo el ancho.",
-          "Despacho no es un estado del sistema: agrupa pedidos ya en heladera cuyo horario es el actual o el siguiente.",
+          "Con el buscador (tecla /) la cámara va directo a la caja del pedido. Minimizar alertas deja el obrador a todo el ancho.",
+          "Un pedido listo queda en la heladera hasta que se marca Retirado en Pedidos; ahí pasa a Entregados.",
         ],
       },
     ],

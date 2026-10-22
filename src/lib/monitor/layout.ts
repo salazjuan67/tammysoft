@@ -6,20 +6,19 @@ import { sceneStatus } from "./selectors";
  *  - El alto del mundo es fijo (1200) y el ancho sigue la proporción del contenedor,
  *    así la escena ocupa todo el ancho y todo el alto sin franjas vacías.
  *  - Tres ambientes separados por tabiques: por hacer, producción y cámara fría
- *    (heladeras arriba, despacho y entregados abajo). Cada uno tiene un ancho mínimo
+ *    (heladeras arriba, entregados abajo). Cada uno tiene un ancho mínimo
  *    y el resto se reparte en proporción a la cantidad de pedidos que tiene.
  */
 export const WORLD_HEIGHT = 1200;
 export const WALL_Y = 262;
 const FLOOR_BOTTOM = 1060;
 
-export type ZoneId = "pending" | "production" | "stored" | "ready_dispatch" | "delivered";
+export type ZoneId = "pending" | "production" | "stored" | "delivered";
 
 export const ZONE_LABEL: Record<ZoneId, string> = {
   pending: "Por hacer",
   production: "Producción",
   stored: "Heladeras",
-  ready_dispatch: "Despacho",
   delivered: "Entregados hoy",
 };
 
@@ -33,9 +32,10 @@ export type SceneLayout = {
   zones: Record<Exclude<ZoneId, "stored">, ZoneBox>;
   tags: Record<ZoneId, { x: number; y: number }>;
   fridge: { xs: number[]; y: number; w: number; h: number; headH: number; lineH: number; lines: number };
-  /** Separación vertical entre las heladeras y las mesas de despacho / entregados. */
-  coldSplitX: number;
+  /** y donde termina el sector de heladeras y empieza la zona de entregados. */
   coldFloorY: number;
+  /** y de las mesas dibujadas en cada ambiente (las filas de cajas caen sobre ellas). */
+  tables: { pending: number[]; delivered: number[] };
 };
 
 /**
@@ -102,16 +102,10 @@ function bucketize(orders: MonitorOrder[]) {
     pending: [],
     production: [],
     stored: [],
-    ready_dispatch: [],
     delivered: [],
   };
   for (const order of orders) {
     if (order.status === "cancelled") continue;
-    if (order.status === "ready_dispatch") {
-      buckets.stored.push(order);
-      buckets.ready_dispatch.push(order);
-      continue;
-    }
     const zone = sceneStatus(order);
     if (zone === "pending" || zone === "production" || zone === "stored" || zone === "delivered") {
       buckets[zone].push(order);
@@ -151,7 +145,7 @@ export function computeLayout(
   } else {
     const nPending = buckets.pending.length;
     const nProd = buckets.production.length;
-    const nCold = Math.max(buckets.stored.length, buckets.ready_dispatch.length + buckets.delivered.length);
+    const nCold = Math.max(buckets.stored.length, buckets.delivered.length);
     const [ePending, eProd] = share(width - minTotal, [0.6 + nPending, 1 + nProd, 0.8 + nCold]);
     a = ROOM_MIN.pending + ePending;
     b = a + ROOM_MIN.production + eProd;
@@ -162,37 +156,31 @@ export function computeLayout(
   const fridgeW = Math.min(440, Math.max(230, (coldW - 70 - fridgeGap * 2) / 3));
   const fridgeStart = b + Math.max(36, (coldW - (fridgeW * 3 + fridgeGap * 2)) / 2);
   const lineH = 30;
-  const lines = Math.min(16, Math.max(6, perFridgeMax));
+  const lines = Math.min(16, Math.max(12, perFridgeMax));
   const fridgeY = 150;
   const headH = 46;
   const fridgeH = headH + lines * lineH + 16;
   const coldFloorY = fridgeY + fridgeH + 40;
 
-  const nDispatch = buckets.ready_dispatch.length;
-  const nDelivered = buckets.delivered.length;
-  const dispatchShare =
-    focus === "ready_dispatch" ? 0.86
-    : focus === "delivered" ? 0.14
-    : Math.min(0.62, Math.max(0.38, (1 + nDispatch) / (2 + nDispatch + nDelivered)));
-  const coldSplitX = b + coldW * dispatchShare;
   const lowerY = coldFloorY + 140;
+  // Dos mesas de entregados bajo las heladeras: la separación se achica si las heladeras son altas.
+  const deliveredStep = Math.min(260, Math.max(130, WORLD_HEIGHT - 70 - lowerY - 102));
+  const pendingY = 400;
 
   return {
     width,
     height,
     rooms: { pending: [0, a], production: [a, b], cold: [b, width] },
     zones: {
-      pending: { x: 60, y: 540, right: a - 120, bottom: FLOOR_BOTTOM },
+      pending: { x: 60, y: pendingY, right: a - 120, bottom: FLOOR_BOTTOM },
       production: { x: a + 70, y: 330, right: b - 150, bottom: FLOOR_BOTTOM },
-      ready_dispatch: { x: b + 50, y: lowerY, right: coldSplitX - 130, bottom: FLOOR_BOTTOM },
-      delivered: { x: coldSplitX + 40, y: lowerY, right: width - 130, bottom: FLOOR_BOTTOM },
+      delivered: { x: b + 50, y: lowerY, right: width - 130, bottom: lowerY + deliveredStep },
     },
     tags: {
-      pending: { x: 60, y: 410 },
+      pending: { x: 60, y: 290 },
       production: { x: a + 60, y: 196 },
       stored: { x: fridgeStart, y: 96 },
-      ready_dispatch: { x: b + 40, y: coldFloorY },
-      delivered: { x: coldSplitX + 30, y: coldFloorY },
+      delivered: { x: b + 40, y: coldFloorY },
     },
     fridge: {
       xs: [0, 1, 2].map((i) => fridgeStart + i * (fridgeW + fridgeGap)),
@@ -203,8 +191,11 @@ export function computeLayout(
       lineH,
       lines,
     },
-    coldSplitX,
     coldFloorY,
+    tables: {
+      pending: [0, 1, 2].map((t) => pendingY + 20 + t * 280),
+      delivered: [0, 1].map((t) => lowerY + 40 + t * deliveredStep),
+    },
   };
 }
 
@@ -259,7 +250,7 @@ export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focus: Zone
   };
   const overflowByZone: Partial<Record<ZoneId, number>> = {};
 
-  (["pending", "production", "ready_dispatch", "delivered"] as const).forEach((zone) => {
+  (["pending", "production", "delivered"] as const).forEach((zone) => {
     const list = [...buckets[zone]].sort(sortForScene);
     const grid = crateGrid(layout.zones[zone], list.length);
     // Si no entran todos, la última celda queda para el "+N".

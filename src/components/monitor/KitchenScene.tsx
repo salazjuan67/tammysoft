@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag, Search } from "lucide-react";
+import { ClipboardList, ChefHat, Snowflake, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag, Search } from "lucide-react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
@@ -19,18 +19,17 @@ const ZONE_ICON: Record<ZoneId, typeof ClipboardList> = {
   pending: ClipboardList,
   production: ChefHat,
   stored: Snowflake,
-  ready_dispatch: Package,
   delivered: CheckCircle2,
 };
 
-const ZONE_ORDER: ZoneId[] = ["pending", "production", "stored", "ready_dispatch", "delivered"];
+const ZONE_ORDER: ZoneId[] = ["pending", "production", "stored", "delivered"];
 
 /** Zoom de rueda a partir del cual el plano general salta a la vista de la sección bajo el cursor. */
 const FOCUS_ZOOM = 1.4;
 
 /** Rectángulo del mundo que encuadra cada sección en su vista ampliada. */
 function focusRect(layout: SceneLayout, focus: ZoneId) {
-  const { width: W, height: H, rooms, fridge, coldSplitX, coldFloorY } = layout;
+  const { width: W, height: H, rooms, fridge, coldFloorY } = layout;
   switch (focus) {
     case "pending":
       return { x0: 0, x1: rooms.pending[1], y0: 170, y1: H - 20 };
@@ -38,10 +37,8 @@ function focusRect(layout: SceneLayout, focus: ZoneId) {
       return { x0: rooms.production[0] - 20, x1: rooms.production[1] + 20, y0: 170, y1: H - 20 };
     case "stored":
       return { x0: fridge.xs[0] - 40, x1: fridge.xs[2] + fridge.w + 40, y0: 70, y1: fridge.y + fridge.h + 40 };
-    case "ready_dispatch":
-      return { x0: rooms.cold[0] + 10, x1: coldSplitX, y0: coldFloorY - 40, y1: H - 20 };
     case "delivered":
-      return { x0: coldSplitX, x1: W - 10, y0: coldFloorY - 40, y1: H - 20 };
+      return { x0: rooms.cold[0] + 10, x1: W - 10, y0: coldFloorY - 40, y1: H - 20 };
   }
 }
 
@@ -63,8 +60,7 @@ function focusCamera(layout: SceneLayout, focus: ZoneId, fit: number, contentBot
 function zoneAt(layout: SceneLayout, x: number, y: number): ZoneId {
   if (x < layout.rooms.pending[1]) return "pending";
   if (x < layout.rooms.production[1]) return "production";
-  if (y < layout.coldFloorY - 20) return "stored";
-  return x < layout.coldSplitX ? "ready_dispatch" : "delivered";
+  return y < layout.coldFloorY - 20 ? "stored" : "delivered";
 }
 
 export function KitchenScene({
@@ -179,7 +175,6 @@ export function KitchenScene({
     crewGroups(layout, {
       pending: buckets.pending.length,
       production: buckets.production.length,
-      dispatch: buckets.ready_dispatch.length,
     }).map((g) => crewStations(g, crateCenters, CREW_CLEARANCE)),
     !calm,
   );
@@ -206,8 +201,6 @@ export function KitchenScene({
   function isDimmed(order: MonitorOrder) {
     if (filter === "all") return false;
     if (filter === "alerts") return !alertIds.has(order.id);
-    if (filter === "ready_dispatch") return order.status !== "ready_dispatch";
-    if (filter === "stored") return order.status !== "stored" && order.status !== "ready_dispatch";
     return order.status !== filter;
   }
 
