@@ -57,14 +57,14 @@ interface PedidosClientProps {
 const ESTADOS_DISPONIBLES = [
   { value: "PENDIENTE", label: "Pendiente" },
   { value: "EN_PRODUCCION", label: "En producción" },
-  { value: "ENTREGADO", label: "Entregado" },
+  { value: "ENTREGADO", label: "Heladera" },
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
 const estadoBadge: Record<string, React.ReactNode> = {
   PENDIENTE: <Badge variant="warning">Pendiente</Badge>,
   EN_PRODUCCION: <Badge variant="info">En producción</Badge>,
-  ENTREGADO: <Badge variant="success">Entregado</Badge>,
+  ENTREGADO: <Badge variant="success">Heladera</Badge>,
   CANCELADO: <Badge variant="secondary">Cancelado</Badge>,
 };
 
@@ -341,7 +341,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                   <SelectItem value="todos">Todos los estados</SelectItem>
                   <SelectItem value="PENDIENTE">Pendiente</SelectItem>
                   <SelectItem value="EN_PRODUCCION">En producción</SelectItem>
-                  <SelectItem value="ENTREGADO">Entregado</SelectItem>
+                  <SelectItem value="ENTREGADO">Heladera</SelectItem>
                   <SelectItem value="CANCELADO">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
@@ -545,12 +545,12 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="El cliente retiró el pedido"
+                                title="Listo para retirar"
                                 className="gap-1 text-emerald-700 hover:bg-emerald-50"
                                 disabled={cambiandoEstado}
                                 onClick={() => marcarRetiro(pedido.id, true)}
                               >
-                                <PackageCheck className="h-4 w-4" /> Retirado
+                                <PackageCheck className="h-4 w-4" /> Listo para retirar
                               </Button>
                             )}
                             {esAdmin && esEntregado && pedido.fechaRetiro && (
@@ -766,11 +766,11 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
       <Dialog open={!!ivaModal} onOpenChange={() => setIvaModal(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Marcar como Entregado</DialogTitle>
+            <DialogTitle>Marcar como Heladera</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-gray-600">
-              Al marcar como entregado se generará la factura automáticamente.
+              Al pasar a heladera se generará la factura automáticamente.
               ¿El pedido incluye IVA?
             </p>
             <div className="flex gap-3">

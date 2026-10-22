@@ -126,7 +126,7 @@ export function getRangoLabel(rango: string): string {
 export const ESTADO_PEDIDO_LABELS: Record<string, string> = {
   PENDIENTE: "Pendiente",
   EN_PRODUCCION: "En producción",
-  ENTREGADO: "Entregado",
+  ENTREGADO: "Heladera",
   CANCELADO: "Cancelado",
 };
 
