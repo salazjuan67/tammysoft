@@ -3,6 +3,7 @@
 import type { MonitorOrder } from "@/lib/monitor/types";
 import { sceneStatus } from "@/lib/monitor/selectors";
 import { type SlotPos } from "@/lib/monitor/layout";
+import type { Urgency } from "@/lib/monitor/urgency";
 import { CRATE_W, crateHeight, IsoCrate } from "./Iso";
 import { ALERT_COLOR, STATUS_META } from "./ui";
 
@@ -20,6 +21,7 @@ export function OrderChip({
   selected,
   alert,
   hot,
+  urgency = "none",
   tv,
   dimmed,
   entering,
@@ -34,6 +36,8 @@ export function OrderChip({
   alert: boolean;
   /** Entrega en el rango horario actual (y todavía no salió). */
   hot: boolean;
+  /** Borde ámbar/rojo según cuánto falta para el fin del rango (solo pedidos aún no listos). */
+  urgency?: Urgency;
   tv: boolean;
   dimmed: boolean;
   entering?: boolean;
@@ -54,6 +58,7 @@ export function OrderChip({
     "data-alert": alert,
     "data-hot": hot && !done,
     "data-done": done,
+    "data-urgency": urgency,
   };
   const enterStyle = entering ? { animation: `ops-in 420ms ease ${enterDelay}ms both` } : undefined;
 

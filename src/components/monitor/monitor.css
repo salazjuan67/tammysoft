@@ -247,6 +247,19 @@ html.tammy-ops-focus [data-sidebar] { display: none !important; }
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent), 0 4px 12px rgba(80, 40, 40, 0.16);
 }
+/* Urgencia: contorno en el svg (el latido de alerta anima el filtro del contenedor y no lo pisa). */
+.tammy-ops-chip[data-urgency="soon"] { --urg: #e6a23c; }
+.tammy-ops-chip[data-urgency="late"] { --urg: #d9453d; }
+.tammy-ops-chip[data-urgency="soon"] .tammy-ops-crate > svg,
+.tammy-ops-chip[data-urgency="late"] .tammy-ops-crate > svg {
+  filter: drop-shadow(4px 0 0 var(--urg)) drop-shadow(-4px 0 0 var(--urg)) drop-shadow(0 4px 0 var(--urg)) drop-shadow(0 -4px 0 var(--urg));
+}
+.tammy-ops-chip[data-urgency="soon"] .slot-tag,
+.tammy-ops-chip[data-urgency="late"] .slot-tag {
+  border-color: var(--urg);
+  border-width: 2px;
+}
+
 .tammy-ops-chip[data-alert="true"] .tammy-ops-crate,
 .tammy-ops-chip[data-alert="true"].shelf-tag {
   animation: ops-alert 1.4s ease-in-out infinite;

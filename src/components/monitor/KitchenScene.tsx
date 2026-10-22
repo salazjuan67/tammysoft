@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag } from "lucide-react";
+import { ClipboardList, ChefHat, Snowflake, Package, CheckCircle2, ZoomIn, ZoomOut, Crosshair, Tag, Search } from "lucide-react";
 import type { MonitorFilter, MonitorOrder } from "@/lib/monitor/types";
 import { assignSlots, ZONE_LABEL, type SceneLayout, type ZoneId } from "@/lib/monitor/layout";
 import { currentAndNextRangos } from "@/lib/monitor/time";
+import type { Urgency } from "@/lib/monitor/urgency";
 import { crewGroups, crewStations, KitchenBackdrop } from "./KitchenBackdrop";
 import { useCrew } from "./useCrew";
 import { CRATE_W, IsoWorker } from "./Iso";
@@ -75,7 +76,10 @@ export function KitchenScene({
   calm,
   entering,
   focus = null,
+  urgency,
+  target,
   onFocus,
+  onSearch,
   onSelect,
   onOverflow,
 }: {
@@ -88,8 +92,12 @@ export function KitchenScene({
   entering?: string[];
   /** Sección ampliada a pantalla completa; el resto de los pedidos se oculta. */
   focus?: ZoneId | null;
+  urgency?: Map<string, Urgency>;
+  /** Pedido buscado: la cámara lo encuadra; `n` cambia en cada búsqueda aunque sea el mismo pedido. */
+  target?: { id: string; n: number } | null;
   /** Pide entrar a una sección (click en su cartel o zoom sobre ella) o volver al plano general (null). */
   onFocus?: (zone: ZoneId | null) => void;
+  onSearch?: () => void;
   onSelect: (id: string) => void;
   onOverflow: (zone: ZoneId) => void;
 }) {
@@ -101,8 +109,10 @@ export function KitchenScene({
   const [labels, setLabels] = useState(true);
   const fit = Math.min(size.width / layout.width, size.height / layout.height);
   const [dragging, setDragging] = useState(false);
-  // null = cámara automática (plano general, o la sala de producción si está enfocada).
-  const [override, setOverride] = useState<{ zoom: number; pan: { x: number; y: number } } | null>(null);
+  // null = cámara automática (plano general, o la sección enfocada). `tag` = búsqueda vigente al moverla a mano:
+  // una búsqueda nueva vuelve a encuadrar el pedido aunque el usuario haya movido la cámara antes.
+  const [override, setOverride] = useState<{ zoom: number; pan: { x: number; y: number }; tag: number } | null>(null);
+  const tag = target?.n ?? 0;
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   // Al entrar a una vista los últimos pasos de la rueda se ignoran, para no seguir acercando de más.
@@ -117,18 +127,31 @@ export function KitchenScene({
     return ys.length ? Math.max(...ys) : undefined;
   }, [positions, focus]);
   const auto = focus ? focusCamera(layout, focus, fit, contentBottom) : { zoom: 1, pan: { x: 0, y: 0 } };
-  const zoom = override?.zoom ?? auto.zoom;
-  const pan = override?.pan ?? auto.pan;
+  const targetCam = target ? cameraOn(target.id) : null;
+  const cam = override && override.tag === tag ? override : (targetCam ?? auto);
+  const zoom = cam.zoom;
+  const pan = cam.pan;
 
   function currentCam() {
-    return override ?? auto;
+    return cam;
+  }
+
+  /** Encuadra la caja (o el renglón de heladera) del pedido, un poco más cerca que la vista de la sección. */
+  function cameraOn(id: string) {
+    const slot = positions.get(id)?.find((s) => !s.overflow && (!focus || s.zone === focus));
+    if (!slot) return null;
+    const cx = slot.x + (slot.kind === "shelf" ? (slot.w ?? 230) / 2 : CRATE_W / 2);
+    const cy = slot.y + (slot.kind === "shelf" ? 10 : 30);
+    const z = Math.min(2.6, Math.max(1.6, auto.zoom * 1.3));
+    const s = fit * z;
+    return { zoom: z, pan: { x: -(cx - layout.width / 2) * s, y: -(cy - layout.height / 2) * s } };
   }
 
   /** Cambia el zoom dejando quieto el punto de pantalla `m` (offset desde el centro del contenedor). */
   function zoomTo(next: number, m = { x: 0, y: 0 }) {
     const base = currentCam();
     const k = next / base.zoom;
-    setOverride({ zoom: next, pan: { x: m.x - (m.x - base.pan.x) * k, y: m.y - (m.y - base.pan.y) * k } });
+    setOverride({ zoom: next, pan: { x: m.x - (m.x - base.pan.x) * k, y: m.y - (m.y - base.pan.y) * k }, tag });
   }
 
   useEffect(() => {
@@ -202,7 +225,7 @@ export function KitchenScene({
       onPointerMove={(e) => {
         if (!drag.current) return;
         const base = currentCam();
-        setOverride({ zoom: base.zoom, pan: { x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) } });
+        setOverride({ zoom: base.zoom, pan: { x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) }, tag });
       }}
       onPointerUp={() => { drag.current = null; setDragging(false); }}
       onPointerLeave={() => { drag.current = null; setDragging(false); }}
@@ -294,6 +317,7 @@ export function KitchenScene({
                 selected={selectedId === order.id}
                 alert={alertIds.has(order.id)}
                 hot={order.rangoHorario === currentRango}
+                urgency={urgency?.get(order.id)}
                 tv={tv}
                 dimmed={dimmed}
                 entering={isEntering}
@@ -317,9 +341,10 @@ export function KitchenScene({
       )}
 
       <div className="glass absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-xl p-1">
+        {onSearch && <Ctrl label="Buscar pedido ( / )" onClick={onSearch}><Search className="h-4 w-4" /></Ctrl>}
         <Ctrl label="Alejar" onClick={() => zoomTo(Math.max(0.7, currentCam().zoom - 0.1))}><ZoomOut className="h-4 w-4" /></Ctrl>
         <Ctrl label="Acercar" onClick={() => zoomTo(Math.min(2.6, currentCam().zoom + 0.1))}><ZoomIn className="h-4 w-4" /></Ctrl>
-        <Ctrl label="Centrar" onClick={() => setOverride(null)}><Crosshair className="h-4 w-4" /></Ctrl>
+        <Ctrl label="Centrar" onClick={() => setOverride({ ...auto, tag })}><Crosshair className="h-4 w-4" /></Ctrl>
         <Ctrl label="Etiquetas" active={labels} onClick={() => setLabels((v) => !v)}><Tag className="h-4 w-4" /></Ctrl>
       </div>
     </div>

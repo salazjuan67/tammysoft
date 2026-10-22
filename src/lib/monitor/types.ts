@@ -114,4 +114,16 @@ export const RANGO_END_HOUR: Record<string, number> = {
   H16_18: 18,
 };
 
+/** Etiqueta corta de cada rango para gráficos chicos. */
+export const RANGO_SHORT: Record<string, string> = {
+  H5_6: "5–6",
+  H7_8: "7–8",
+  H9_10: "9–10",
+  H10_12: "10–12",
+  H12_14: "12–14",
+  H14_16: "14–16",
+  H16_18: "16–18",
+  SIN_ESPECIFICAR: "s/h",
+};
+
 export const RANGO_ORDER = ["H5_6", "H7_8", "H9_10", "H10_12", "H12_14", "H14_16", "H16_18", "SIN_ESPECIFICAR"];
