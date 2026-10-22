@@ -271,26 +271,6 @@ export function KitchenBackdrop({
 
       {showPending && (
         <>
-          {/* Cartel con el logo real */}
-          <g>
-            <rect
-              x="40"
-              y="28"
-              width="360"
-              height="124"
-              rx="22"
-              fill="#fff"
-              stroke="#f0cfd0"
-            />
-            <image
-              href="/brand/logo-tammy.png"
-              x="56"
-              y="36"
-              width="328"
-              height="110"
-            />
-          </g>
-
           {/* Pizarra de pedidos (ambiente izquierdo) */}
           <g>
             <rect
