@@ -2,9 +2,9 @@ import { WALL_Y, type SceneLayout } from "@/lib/monitor/layout";
 import { IsoPlant, IsoShelf, IsoTable, Vitrina } from "./Iso";
 
 /** Pedidos por persona dibujada en cada ambiente (solo ambientación, no es dotación real). */
-const ORDERS_PER_WORKER = { pending: 4, production: 3 };
+const ORDERS_PER_WORKER = { pending: 4, production: 3, cold: 5 };
 
-export type Crew = { pending: number; production: number };
+export type Crew = { pending: number; production: number; cold: number };
 export type CrewStation = { x: number; y: number };
 /**
  * Frente de una mesa donde pueden pararse personas: `y` = pies, `x0..x1` = tramo caminable.
@@ -24,12 +24,14 @@ export type CrewGroupWithStations = Omit<CrewGroup, "tables"> & {
 };
 
 export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
-  const { rooms, tables } = layout;
+  const { width: W, rooms, tables } = layout;
   const [, a] = rooms.pending;
   const [, b] = rooms.production;
   const prodTableW = Math.max(300, b - a - 120 - 130 * 0.72);
   const pendingTableW = Math.max(220, a - 110 - 150 * 0.72);
+  const deliveredTableW = Math.max(200, W - b - 70 - 110 * 0.72);
   const showPending = a >= 400;
+  const showCold = W - b >= 700;
 
   const groups: CrewGroup[] = [
     {
@@ -38,8 +40,8 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
         6,
         Math.ceil(crew.production / ORDERS_PER_WORKER.production),
       ),
-      tables: [0, 1, 2].map((t) => ({
-        y: 480 + t * 280,
+      tables: tables.production.map((ty) => ({
+        y: ty + 140,
         x0: a + 80,
         x1: a + 60 + prodTableW + 40,
       })),
@@ -56,6 +58,20 @@ export function crewGroups(layout: SceneLayout, crew: Crew): CrewGroup[] {
         x1: 50 + pendingTableW + 30,
       })),
       accent: "#d7a68d",
+    });
+  }
+  // Cámara fría: quienes acomodan heladeras y entregan. Solo frente a la mesa delantera:
+  // las mesas de entregados están juntas y entre ellas taparían etiquetas.
+  if (showCold) {
+    groups.push({
+      key: "cold",
+      count: crew.cold > 0 ? Math.min(3, Math.max(1, Math.ceil(crew.cold / ORDERS_PER_WORKER.cold))) : 0,
+      tables: tables.delivered.slice(-1).map((ty) => ({
+        y: ty + 120,
+        x0: b + 80,
+        x1: b + 40 + deliveredTableW + 30,
+      })),
+      accent: "#7fb6c8",
     });
   }
   return groups;

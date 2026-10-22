@@ -175,6 +175,7 @@ export function KitchenScene({
     crewGroups(layout, {
       pending: buckets.pending.length,
       production: buckets.production.length,
+      cold: buckets.stored.length + buckets.delivered.length,
     }).map((g) => crewStations(g, crateCenters, CREW_CLEARANCE)),
     !calm,
   );

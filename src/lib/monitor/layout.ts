@@ -34,8 +34,10 @@ export type SceneLayout = {
   fridge: { xs: number[]; y: number; w: number; h: number; headH: number; lineH: number; lines: number };
   /** y donde termina el sector de heladeras y empieza la zona de entregados. */
   coldFloorY: number;
-  /** y de las mesas dibujadas en cada ambiente (las filas de cajas caen sobre ellas). */
-  tables: { pending: number[]; delivered: number[] };
+  /** y de las mesas dibujadas en cada ambiente. */
+  tables: { pending: number[]; production: number[]; delivered: number[] };
+  /** y de cada fila de cajas: una por mesa, apoyada sobre el tablero. */
+  crateRows: { pending: number[]; production: number[]; delivered: number[] };
 };
 
 /**
@@ -57,10 +59,8 @@ export type SlotPos = {
 };
 
 const ROOM_MIN = { pending: 420, production: 640, cold: 860 };
-const CRATE_COL_MIN = 168;
+const CRATE_COL_MIN = 130;
 const CRATE_COL_MAX = 260;
-const CRATE_ROW_MIN = 64;
-const CRATE_ROW_MAX = 280;
 
 /** Índice 0–2 de la heladera dibujada; ids fuera de rango se agrupan en la tercera. */
 export function fridgeIndex(order: MonitorOrder, fallback = 0) {
@@ -166,6 +166,11 @@ export function computeLayout(
   // Dos mesas de entregados bajo las heladeras: la separación se achica si las heladeras son altas.
   const deliveredStep = Math.min(260, Math.max(130, WORLD_HEIGHT - 70 - lowerY - 102));
   const pendingY = 400;
+  const tables = {
+    pending: [0, 1, 2].map((t) => pendingY + 20 + t * 280),
+    production: [0, 1, 2].map((t) => 340 + t * 280),
+    delivered: [0, 1].map((t) => lowerY + 40 + t * deliveredStep),
+  };
 
   return {
     width,
@@ -192,31 +197,29 @@ export function computeLayout(
       lines,
     },
     coldFloorY,
-    tables: {
-      pending: [0, 1, 2].map((t) => pendingY + 20 + t * 280),
-      delivered: [0, 1].map((t) => lowerY + 40 + t * deliveredStep),
+    tables,
+    // Cada fila de cajas cae sobre el tablero de su mesa (el desfase depende de la profundidad de la mesa).
+    crateRows: {
+      pending: tables.pending.map((y) => y - 20),
+      production: tables.production.map((y) => y - 10),
+      delivered: tables.delivered.map((y) => y - 40),
     },
   };
 }
 
 /**
- * Grilla de cajas que ocupa todo el ambiente: con pocos pedidos se separan para usar el ancho,
- * con muchos se compacta hasta el mínimo legible y recién ahí aparece el "+N".
+ * Cajas siempre apoyadas sobre las mesas: una fila por mesa (`rowYs`), repartidas a lo largo del tablero.
+ * Con pocos pedidos se separan para usar el ancho; con muchos se compactan hasta el paso mínimo
+ * (las etiquetas vecinas alternan altura) y recién ahí aparece el "+N".
  */
-function crateGrid(box: ZoneBox, total: number) {
+function crateGrid(box: ZoneBox, rowYs: number[], total: number) {
   const usableW = Math.max(0, box.right - box.x);
-  const usableH = Math.max(0, box.bottom - box.y);
   const maxCols = Math.max(1, Math.floor(usableW / CRATE_COL_MIN) + 1);
-  const maxRows = Math.max(1, Math.floor(usableH / CRATE_ROW_MIN) + 1);
-  const cap = maxCols * maxRows;
+  const cap = maxCols * rowYs.length;
   const shown = Math.min(total, cap);
-  // Columnas y filas en la misma proporción que el ambiente, para repartir las cajas en toda la sala.
-  const ratio = usableW / 200 / Math.max(1, usableH / 150);
-  const balanced = Math.ceil(Math.sqrt(Math.max(1, shown) * ratio));
-  const cols = Math.max(1, Math.min(maxCols, Math.max(balanced, Math.ceil(shown / maxRows))));
-  const rows = Math.max(1, Math.ceil(shown / cols));
+  const rows = Math.max(1, Math.min(rowYs.length, shown));
+  const cols = Math.max(1, Math.ceil(shown / rows));
   const colStep = cols > 1 ? Math.min(CRATE_COL_MAX, usableW / (cols - 1)) : 0;
-  const rowStep = rows > 1 ? Math.min(CRATE_ROW_MAX, Math.max(CRATE_ROW_MIN, usableH / (rows - 1))) : 0;
   const offsetX = cols > 1 ? Math.max(0, (usableW - colStep * (cols - 1)) / 2) : Math.min(usableW / 2, 120);
   return {
     cap,
@@ -224,8 +227,8 @@ function crateGrid(box: ZoneBox, total: number) {
       const col = index % cols;
       const row = Math.floor(index / cols);
       return {
-        x: box.x + offsetX + col * colStep - row * 14,
-        y: box.y + row * rowStep + col * 6,
+        x: box.x + offsetX + col * colStep,
+        y: rowYs[row],
         stagger: col % 2 === 1,
       };
     },
@@ -252,7 +255,7 @@ export function assignSlots(orders: MonitorOrder[], aspect = 16 / 9, focus: Zone
 
   (["pending", "production", "delivered"] as const).forEach((zone) => {
     const list = [...buckets[zone]].sort(sortForScene);
-    const grid = crateGrid(layout.zones[zone], list.length);
+    const grid = crateGrid(layout.zones[zone], layout.crateRows[zone], list.length);
     // Si no entran todos, la última celda queda para el "+N".
     const visible = list.length > grid.cap ? grid.cap - 1 : list.length;
     list.forEach((order, i) => {
