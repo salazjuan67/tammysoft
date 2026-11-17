@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FACTURA_VIGENTE, facturasConSaldo } from "@/lib/cuentaCorriente";
 
 export async function GET() {
   const session = await auth();
@@ -10,10 +11,7 @@ export async function GET() {
   const ahora = new Date();
 
   const facturas = await db.factura.findMany({
-    where: {
-      clienteId,
-      estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
-    },
+    where: { clienteId, ...FACTURA_VIGENTE },
     include: {
       pagos: { select: { monto: true } },
     },
@@ -21,9 +19,7 @@ export async function GET() {
   });
 
   let deudaTotal = 0;
-  const porFactura = facturas.map((f) => {
-    const pagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
-    const saldo = Number(f.montoTotal) - pagado;
+  const porFactura = facturasConSaldo(facturas).map(({ factura: f, saldo }) => {
     const dias = Math.floor((ahora.getTime() - new Date(f.fecha).getTime()) / (1000 * 60 * 60 * 24));
     const semaforo = dias >= 60 ? "rojo" : dias >= 30 ? "naranja" : dias >= 15 ? "amarillo" : "verde";
     deudaTotal += saldo;

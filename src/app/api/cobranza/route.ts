@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pagoSchema } from "@/lib/validations";
+import { FACTURA_VIGENTE, TOLERANCIA, facturasConSaldo, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
+
+class CobroError extends Error {}
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -17,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   if (tipo === "resumen") {
     // Totales financieros
-    const [efectivo, transferencias, deudaTotal] = await Promise.all([
+    const [efectivo, transferencias, facturas] = await Promise.all([
       db.pago.aggregate({
         _sum: { monto: true },
         where: { tipoPago: "EFECTIVO" },
@@ -26,9 +29,9 @@ export async function GET(req: NextRequest) {
         _sum: { monto: true },
         where: { tipoPago: "TRANSFERENCIA" },
       }),
-      db.factura.aggregate({
-        _sum: { montoTotal: true },
-        where: { estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] } },
+      db.factura.findMany({
+        where: FACTURA_VIGENTE,
+        select: { montoTotal: true, pagos: { select: { monto: true } } },
       }),
     ]);
 
@@ -37,7 +40,7 @@ export async function GET(req: NextRequest) {
         totalEfectivo: Number(efectivo._sum.monto ?? 0),
         totalTransferencias: Number(transferencias._sum.monto ?? 0),
         totalCobrado: Number(efectivo._sum.monto ?? 0) + Number(transferencias._sum.monto ?? 0),
-        totalDeuda: Number(deudaTotal._sum.montoTotal ?? 0),
+        totalDeuda: facturasConSaldo(facturas).reduce((s, f) => s + f.saldo, 0),
       },
     });
   }
@@ -48,10 +51,7 @@ export async function GET(req: NextRequest) {
     if (!clienteId) return NextResponse.json({ error: "clienteId requerido" }, { status: 400 });
 
     const facturas = await db.factura.findMany({
-      where: {
-        clienteId,
-        estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
-      },
+      where: { clienteId, ...FACTURA_VIGENTE },
       include: {
         pagos: {
           select: { id: true, monto: true, tipoPago: true, fechaPago: true, observaciones: true },
@@ -62,24 +62,23 @@ export async function GET(req: NextRequest) {
       orderBy: { fecha: "asc" },
     });
 
-    const data = facturas.map((f) => {
-      const totalPagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
-      const saldoPendiente = Math.max(0, Number(f.montoTotal) - totalPagado);
-      return {
-        id: f.id,
-        numero: f.numero,
-        fecha: f.fecha,
-        montoTotal: Number(f.montoTotal),
-        totalPagado,
-        saldoPendiente,
-        estado: f.estado,
-        pedido: f.pedido,
-        pagos: f.pagos.map((p) => ({
-          ...p,
-          monto: Number(p.monto),
-        })),
-      };
-    });
+    const data = facturasConSaldo(facturas).map(({ factura: f, totalPagado, saldo }) => ({
+      id: f.id,
+      numero: f.numero,
+      fecha: f.fecha,
+      montoTotal: Number(f.montoTotal),
+      montoNeto: Number(f.montoNeto),
+      montoIva: Number(f.montoIva),
+      tasaIva: Number(f.tasaIva),
+      totalPagado,
+      saldoPendiente: saldo,
+      estado: f.estado,
+      pedido: f.pedido,
+      pagos: f.pagos.map((p) => ({
+        ...p,
+        monto: Number(p.monto),
+      })),
+    }));
 
     return NextResponse.json({ data });
   }
@@ -98,7 +97,7 @@ export async function GET(req: NextRequest) {
       include: {
         facturas: {
           where: {
-            estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
+            ...FACTURA_VIGENTE,
             // Filtrar por fecha de entrega del pedido asociado
             ...(desde || hasta ? {
               pedido: {
@@ -120,27 +119,22 @@ export async function GET(req: NextRequest) {
 
     const clientesConDeuda = clientes
       .map((c) => {
-        const deuda = c.facturas.reduce((acc, f) => {
-          const pagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
-          return acc + Number(f.montoTotal) - pagado;
-        }, 0);
+        const pendientes = facturasConSaldo(c.facturas);
+        const deuda = pendientes.reduce((acc, f) => acc + f.saldo, 0);
         // Fecha de entrega más antigua entre las facturas pendientes
-        const fechasEntrega = c.facturas
-          .map((f) => f.pedido?.fechaEntrega)
+        const fechasEntrega = pendientes
+          .map((f) => f.factura.pedido?.fechaEntrega)
           .filter(Boolean) as Date[];
         const fechaEntregaMasAntigua = fechasEntrega.length > 0
           ? fechasEntrega.reduce((oldest, d) => d < oldest ? d : oldest).toISOString()
           : null;
         // Fecha de factura más antigua (para referencia)
-        const fechaPrimerFactura = c.facturas.length > 0
-          ? c.facturas.reduce((oldest, f) =>
-              new Date(f.fecha) < new Date(oldest) ? f.fecha.toISOString() : oldest,
-              c.facturas[0].fecha.toISOString()
-            )
+        const fechaPrimerFactura = pendientes.length > 0
+          ? pendientes.reduce((oldest, f) => f.factura.fecha < oldest ? f.factura.fecha : oldest, pendientes[0].factura.fecha).toISOString()
           : null;
-        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: c.facturas.length, fechaPrimerFactura, fechaEntregaMasAntigua };
+        return { id: c.id, nombre: c.nombre, deuda, cantidadFacturas: pendientes.length, fechaPrimerFactura, fechaEntregaMasAntigua };
       })
-      .filter((c) => c.deuda > 0)
+      .filter((c) => c.deuda > TOLERANCIA)
       .sort((a, b) => b.deuda - a.deuda);
 
     return NextResponse.json({ data: clientesConDeuda });
@@ -188,49 +182,43 @@ export async function POST(req: NextRequest) {
 
   const { clienteId, facturaId, monto, tipoPago, fechaPago, observaciones } = parsed.data;
 
-  const pago = await db.$transaction(async (tx) => {
-    const nuevoPago = await tx.pago.create({
-      data: {
-        clienteId,
-        facturaId: facturaId || null,
-        monto,
-        tipoPago,
-        fechaPago,
-        observaciones,
-        usuarioId: session.user.id,
-      },
-    });
+  if (!facturaId) {
+    return NextResponse.json({ error: "Indicá la factura a la que se aplica el cobro" }, { status: 400 });
+  }
 
-    // Actualizar estado de factura si aplica
-    if (facturaId) {
+  try {
+    const pago = await db.$transaction(async (tx) => {
       const factura = await tx.factura.findUnique({
         where: { id: facturaId },
         include: { pagos: { select: { monto: true } } },
       });
+      if (!factura || factura.clienteId !== clienteId) throw new CobroError("La factura no pertenece al cliente");
+      if (factura.estado === "ANULADA") throw new CobroError("La factura está anulada");
 
-      if (factura) {
-        const totalPagado = [...factura.pagos, { monto: monto }].reduce(
-          (acc, p) => acc + Number(p.monto),
-          0
-        );
-        const montoTotal = Number(factura.montoTotal);
-
-        let nuevoEstado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" = "PENDIENTE";
-        if (totalPagado >= montoTotal) {
-          nuevoEstado = "COBRADA";
-        } else if (totalPagado > 0) {
-          nuevoEstado = "PARCIALMENTE_COBRADA";
-        }
-
-        await tx.factura.update({
-          where: { id: facturaId },
-          data: { estado: nuevoEstado },
-        });
+      const { saldo } = saldoFactura(factura.montoTotal, factura.pagos);
+      if (monto > saldo + TOLERANCIA) {
+        throw new CobroError(`El monto supera el saldo pendiente de la factura (${saldo.toFixed(2)})`);
       }
-    }
 
-    return nuevoPago;
-  });
+      const nuevoPago = await tx.pago.create({
+        data: {
+          clienteId,
+          facturaId,
+          monto,
+          tipoPago,
+          fechaPago,
+          observaciones,
+          usuarioId: session.user.id,
+        },
+      });
 
-  return NextResponse.json({ data: pago }, { status: 201 });
+      await recalcularEstadoFactura(tx, facturaId);
+      return nuevoPago;
+    });
+
+    return NextResponse.json({ data: pago }, { status: 201 });
+  } catch (e) {
+    if (e instanceof CobroError) return NextResponse.json({ error: e.message }, { status: 400 });
+    throw e;
+  }
 }

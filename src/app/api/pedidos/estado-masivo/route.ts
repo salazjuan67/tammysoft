@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   await db.$transaction(async (tx) => {
     for (const pedido of pedidos) {
       if (pedido.estado === "CANCELADO") { omitidos += 1; continue; }
-      if (estado === "ENTREGADO" && pedido.estado === "ENTREGADO") { omitidos += 1; continue; }
+      if (pedido.estado === "ENTREGADO" && (estado === "ENTREGADO" || pedido.factura)) { omitidos += 1; continue; }
 
       await tx.pedido.update({
         where: { id: pedido.id },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FACTURA_VIGENTE, facturasConSaldo } from "@/lib/cuentaCorriente";
 
 export async function GET() {
   const session = await auth();
@@ -24,20 +25,14 @@ export async function GET() {
 
   // Facturas pendientes (saldo por cobrar)
   const facturas = await db.factura.findMany({
-    where: {
-      clienteId: cliente.id,
-      estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
-    },
+    where: { clienteId: cliente.id, ...FACTURA_VIGENTE },
     include: {
       pagos: { select: { monto: true } },
     },
   });
 
   const totalPedidos = pedidos.reduce((s, p) => s + Number(p.montoTotal), 0);
-  const totalDeuda = facturas.reduce((s, f) => {
-    const pagado = f.pagos.reduce((ps, p) => ps + Number(p.monto), 0);
-    return s + Math.max(0, Number(f.montoTotal) - pagado);
-  }, 0);
+  const totalDeuda = facturasConSaldo(facturas).reduce((s, f) => s + f.saldo, 0);
 
   // Solicitudes
   const solicitudes = await db.solicitudFacturacion.findMany({
@@ -47,9 +42,9 @@ export async function GET() {
     take: 10,
   });
 
-  // IDs de pedidos ya incluidos en alguna solicitud
+  // IDs de pedidos ya incluidos en alguna solicitud vigente (las rechazadas se pueden volver a pedir)
   const pedidosEnSolicitud = await db.solicitudItem.findMany({
-    where: { pedido: { clienteId: cliente.id } },
+    where: { pedido: { clienteId: cliente.id }, solicitud: { estado: { not: "RECHAZADA" } } },
     select: { pedidoId: true },
   });
   const pedidosEnSolicitudIds = new Set(pedidosEnSolicitud.map((s) => s.pedidoId));

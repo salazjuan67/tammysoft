@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recalcularEstadoFactura } from "@/lib/cuentaCorriente";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -38,34 +39,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (accion === "procesar") {
     await db.$transaction(async (tx) => {
+      // La parte en efectivo sigue adeudada: la factura totaliza efectivo + base + IVA
+      // y cada parte se cobra desde Cobranza cuando entra la plata.
       for (const item of solicitud.items) {
+        if (Number(item.porcentajeFacturado) <= 0) continue;
+
+        const efectivo = Number(item.montoEfectivo);
+        const base = Number(item.montoBase);
+        const iva = Number(item.montoIva);
+        const data = {
+          montoNeto: efectivo + base,
+          montoIva: iva,
+          montoTotal: efectivo + base + iva,
+          tasaIva: Number(solicitud.tasaIva),
+        };
+
         const factura = item.pedido.factura;
-
-        if (factura && Number(item.porcentajeFacturado) > 0) {
-          // Actualizar la factura existente con el monto facturado + IVA
-          await tx.factura.update({
-            where: { id: factura.id },
-            data: {
-              montoNeto: Number(item.montoBase),
-              montoIva: Number(item.montoIva),
-              montoTotal: Number(item.montoTransfer),
-              tasaIva: Number(solicitud.tasaIva),
-            },
-          });
-        }
-
-        // Registrar el pago en efectivo si hay monto
-        if (Number(item.montoEfectivo) > 0) {
-          await tx.pago.create({
-            data: {
-              clienteId: solicitud.clienteId,
-              facturaId: factura?.id ?? null,
-              monto: Number(item.montoEfectivo),
-              tipoPago: "EFECTIVO",
-              usuarioId: session.user.id,
-              observaciones: `Efectivo sin facturar (solicitud #${solicitud.numero})`,
-            },
-          });
+        if (factura && factura.estado !== "ANULADA") {
+          await tx.factura.update({ where: { id: factura.id }, data });
+          await recalcularEstadoFactura(tx, factura.id);
+        } else if (!factura) {
+          await tx.factura.create({ data: { ...data, pedidoId: item.pedidoId, clienteId: solicitud.clienteId } });
         }
       }
 

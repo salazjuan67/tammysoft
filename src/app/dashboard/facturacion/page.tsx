@@ -15,6 +15,7 @@ interface Factura {
   numero: number;
   fecha: string;
   montoTotal: string | number;
+  saldoPendiente: number;
   estado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA";
   cliente: { id: string; nombre: string };
 }
@@ -48,7 +49,7 @@ export default function FacturacionPage() {
   const pageSize = 20;
 
   // Filters
-  const [estadoFiltro, setEstadoFiltro] = useState("cobrada");
+  const [estadoFiltro, setEstadoFiltro] = useState("sin-cobrar");
   const [clienteId, setClienteId] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -87,7 +88,7 @@ export default function FacturacionPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   function limpiarFiltros() {
-    setEstadoFiltro("cobrada");
+    setEstadoFiltro("sin-cobrar");
     setClienteId("");
     setDesde("");
     setHasta("");
@@ -115,8 +116,8 @@ export default function FacturacionPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cobrada">Cobradas</SelectItem>
                   <SelectItem value="sin-cobrar">Sin cobrar</SelectItem>
+                  <SelectItem value="cobrada">Cobradas</SelectItem>
                   <SelectItem value="todas">Todas</SelectItem>
                 </SelectContent>
               </Select>
@@ -159,7 +160,7 @@ export default function FacturacionPage() {
             </div>
           </div>
 
-          {(estadoFiltro !== "cobrada" || clienteId || desde || hasta) && (
+          {(estadoFiltro !== "sin-cobrar" || clienteId || desde || hasta) && (
             <button
               onClick={limpiarFiltros}
               className="mt-2 text-xs text-pink-600 hover:underline"
@@ -192,6 +193,7 @@ export default function FacturacionPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">Saldo</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Acciones</th>
                   </tr>
@@ -210,6 +212,9 @@ export default function FacturacionPage() {
                       <td className="px-4 py-3 text-gray-900">{f.cliente.nombre}</td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">
                         {formatCurrency(Number(f.montoTotal))}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-semibold ${f.saldoPendiente > 0 ? "text-red-600" : "text-gray-400"}`}>
+                        {formatCurrency(f.saldoPendiente)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={ESTADO_VARIANT[f.estado] ?? "secondary"}>

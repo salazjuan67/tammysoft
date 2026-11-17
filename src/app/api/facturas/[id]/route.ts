@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -19,12 +20,25 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           },
         },
       },
+      pagos: {
+        select: { id: true, monto: true, tipoPago: true, fechaPago: true, observaciones: true },
+        orderBy: { fechaPago: "asc" },
+      },
     },
   });
 
   if (!factura) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
 
-  return NextResponse.json({ data: factura });
+  const { totalPagado, saldo } = saldoFactura(factura.montoTotal, factura.pagos);
+
+  return NextResponse.json({
+    data: {
+      ...factura,
+      pagos: factura.pagos.map((p) => ({ ...p, monto: Number(p.monto) })),
+      totalPagado,
+      saldoPendiente: factura.estado === "ANULADA" ? 0 : saldo,
+    },
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,36 +52,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
-  const { estado, tasaIva } = body;
+  const { tasaIva } = body;
+
+  if (tasaIva === undefined || typeof tasaIva !== "number" || tasaIva < 0 || tasaIva > 1) {
+    return NextResponse.json(
+      { error: "El estado se calcula a partir de los cobros; solo se puede modificar la tasa de IVA" },
+      { status: 400 }
+    );
+  }
 
   const facturaActual = await db.factura.findUnique({ where: { id } });
   if (!facturaActual) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: Record<string, any> = {};
-
-  // Actualizar IVA sobre el monto neto original
-  if (tasaIva !== undefined) {
-    const montoNeto = Number(facturaActual.montoNeto);
-    const montoIva = montoNeto * tasaIva;
-    const montoTotal = montoNeto + montoIva;
-    data.tasaIva = tasaIva;
-    data.montoIva = montoIva;
-    data.montoTotal = montoTotal;
+  if (facturaActual.estado === "ANULADA") {
+    return NextResponse.json({ error: "La factura está anulada" }, { status: 400 });
   }
 
-  if (estado) {
-    const estadoEnum = estado === "cobrada" ? "COBRADA"
-      : estado === "sin-cobrar" ? "PENDIENTE"
-      : estado;
-    const validEstados = ["PENDIENTE", "PARCIALMENTE_COBRADA", "COBRADA", "ANULADA"];
-    if (!validEstados.includes(estadoEnum)) {
-      return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
-    }
-    data.estado = estadoEnum;
-  }
+  // El IVA se aplica sobre el monto neto original
+  const montoNeto = Number(facturaActual.montoNeto);
+  const montoIva = montoNeto * tasaIva;
 
-  const factura = await db.factura.update({ where: { id }, data });
+  const factura = await db.$transaction(async (tx) => {
+    await tx.factura.update({
+      where: { id },
+      data: { tasaIva, montoIva, montoTotal: montoNeto + montoIva },
+    });
+    await recalcularEstadoFactura(tx, id);
+    return tx.factura.findUnique({ where: { id } });
+  });
+
   return NextResponse.json({ data: factura });
 }
 

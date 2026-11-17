@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, CheckCircle2, RotateCcw, Trash2, FileText, User, Package } from "lucide-react";
+import { ArrowLeft, Trash2, FileText, User, Package, Receipt, Wallet, CreditCard } from "lucide-react";
 
 interface FacturaDetalle {
   id: string;
@@ -28,6 +28,9 @@ interface FacturaDetalle {
   montoNeto: string | number;
   montoIva: string | number;
   tasaIva: string | number;
+  totalPagado: number;
+  saldoPendiente: number;
+  pagos: { id: string; monto: number; tipoPago: string; fechaPago: string; observaciones: string | null }[];
   estado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA";
   cliente: { id: string; nombre: string; email: string | null; telefono: string | null };
   pedido: {
@@ -71,23 +74,6 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
       .catch(() => { toast({ title: "Error al cargar factura", variant: "destructive" }); setLoading(false); });
   }, [id]);
 
-  async function cambiarEstado(nuevoEstado: "cobrada" | "sin-cobrar") {
-    setUpdating(true);
-    const res = await fetch(`/api/facturas/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado: nuevoEstado }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      toast({ title: "Error", description: json.error, variant: "destructive" });
-    } else {
-      toast({ title: nuevoEstado === "cobrada" ? "Factura marcada como cobrada" : "Factura marcada como sin cobrar" });
-      setFactura((prev) => prev ? { ...prev, estado: json.data.estado } : prev);
-    }
-    setUpdating(false);
-  }
-
   async function anularFactura() {
     setUpdating(true);
     const res = await fetch(`/api/facturas/${id}`, { method: "DELETE" });
@@ -118,6 +104,7 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
 
   const esCobrada = factura.estado === "COBRADA";
   const esAnulada = factura.estado === "ANULADA";
+  const tieneSaldo = !esAnulada && factura.saldoPendiente > 0;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -143,23 +130,13 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
         {/* Actions */}
         {!esAnulada && (
           <div className="flex gap-2">
-            {!esCobrada ? (
+            {tieneSaldo && (
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => cambiarEstado("cobrada")}
-                disabled={updating}
+                onClick={() => router.push(`/dashboard/cobranza?clienteId=${factura.cliente.id}`)}
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Marcar cobrada
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => cambiarEstado("sin-cobrar")}
-                disabled={updating}
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Marcar sin cobrar
+                <Receipt className="h-4 w-4 mr-2" />
+                Cobrar en Cobranza
               </Button>
             )}
 
@@ -298,10 +275,38 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
               {ESTADO_LABELS[factura.estado] ?? factura.estado}
             </Badge>
           </div>
-          {!esAnulada && !esCobrada && (
-            <p className="text-sm text-red-600 mt-2">
-              Monto pendiente de cobro: <strong>{formatCurrency(Number(factura.montoTotal))}</strong>
-            </p>
+          {!esAnulada && (
+            <div className="grid grid-cols-3 gap-3 mt-3 text-center text-sm">
+              <div>
+                <p className="text-gray-500 text-xs">Total</p>
+                <p className="font-bold text-gray-900">{formatCurrency(Number(factura.montoTotal))}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Cobrado</p>
+                <p className="font-bold text-green-600">{formatCurrency(factura.totalPagado)}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Saldo pendiente</p>
+                <p className="font-bold text-red-600">{formatCurrency(factura.saldoPendiente)}</p>
+              </div>
+            </div>
+          )}
+          {factura.pagos.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium text-gray-500">Historial de cobros</p>
+              {factura.pagos.map((pago) => (
+                <div key={pago.id} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 border border-gray-100">
+                  <div className="flex items-center gap-2">
+                    {pago.tipoPago === "EFECTIVO"
+                      ? <Wallet className="h-3.5 w-3.5 text-green-600" />
+                      : <CreditCard className="h-3.5 w-3.5 text-blue-600" />}
+                    <span className="text-gray-600">{formatDate(pago.fechaPago)}</span>
+                    {pago.observaciones && <span className="text-gray-400 text-xs">· {pago.observaciones}</span>}
+                  </div>
+                  <span className="font-semibold text-green-700">{formatCurrency(pago.monto)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

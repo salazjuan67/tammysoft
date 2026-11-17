@@ -39,6 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (!pedido) return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
 
+  if (pedido.estado === "ENTREGADO" && pedido.factura && estado !== "ENTREGADO") {
+    return NextResponse.json(
+      { error: "El pedido ya está entregado y facturado; para revertirlo primero anulá la factura" },
+      { status: 409 }
+    );
+  }
+
   const result = await db.$transaction(async (tx) => {
     const pedidoActualizado = await tx.pedido.update({
       where: { id },

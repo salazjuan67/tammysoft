@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,7 @@ export default function CobranzaPage() {
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
 
   // Modal registrar cobro
-  const [pagoModal, setPagoModal] = useState<{ facturaId: string; facturaNumero: number; saldoPendiente: number; montoNeto: number; tasaIvaActual: number } | null>(null);
+  const [pagoModal, setPagoModal] = useState<{ facturaId: string; facturaNumero: number; saldoPendiente: number; totalPagado: number; montoNeto: number; tasaIvaActual: number } | null>(null);
   const [monto, setMonto] = useState("");
   const [tipoPago, setTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
   const [conIva, setConIva] = useState(false);
@@ -102,6 +102,24 @@ export default function CobranzaPage() {
   }, [clienteIdFiltro, desde, hasta]);
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
+
+  // Abrir la cuenta de un cliente al llegar con ?clienteId= (por ejemplo desde el detalle de una factura)
+  const clienteAAbrir = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (clienteAAbrir.current === undefined) {
+      clienteAAbrir.current = new URLSearchParams(window.location.search).get("clienteId");
+    }
+    const id = clienteAAbrir.current;
+    if (!id || loading) return;
+    const conDeuda = deudas.find((d) => d.id === id);
+    const cliente = clientes.find((c) => c.id === id);
+    if (!conDeuda && !cliente) return;
+    clienteAAbrir.current = null;
+    abrirDetalle(conDeuda ?? {
+      id, nombre: cliente!.nombre, deuda: 0, cantidadFacturas: 0,
+      fechaPrimerFactura: null, fechaEntregaMasAntigua: null,
+    });
+  }, [loading, deudas, clientes]);
 
   useEffect(() => {
     fetch("/api/clientes?pageSize=200")
@@ -136,43 +154,67 @@ export default function CobranzaPage() {
       facturaId: factura.id,
       facturaNumero: factura.numero,
       saldoPendiente: factura.saldoPendiente,
+      totalPagado: factura.totalPagado,
       montoNeto: factura.montoNeto,
       tasaIvaActual: factura.tasaIva,
     });
     setMonto(String(factura.saldoPendiente.toFixed(2)));
-    setConIva(Number(factura.tasaIva) > 0);
-    setTasaIva(Number(factura.tasaIva) === 0.105 ? 0.105 : 0.21);
+    setConIva(false);
+    setTasaIva(0.21);
     setObservaciones("");
     setTipoPago("TRANSFERENCIA");
   }
 
-  const montoBase = parseFloat(monto) || 0;
-  const ivaCalculado = conIva ? montoBase * tasaIva : 0;
-  const totalConIva = montoBase + ivaCalculado;
+  // Solo se puede agregar IVA a facturas que todavía no lo tienen; si ya lo tienen, el saldo ya lo incluye.
+  const facturaSinIva = !!pagoModal && Number(pagoModal.tasaIvaActual) === 0;
+  const agregaIva = facturaSinIva && conIva;
+  const saldoACobrar = pagoModal
+    ? agregaIva
+      ? Math.max(0, Math.round((pagoModal.montoNeto * (1 + tasaIva) - pagoModal.totalPagado) * 100) / 100)
+      : pagoModal.saldoPendiente
+    : 0;
+  const montoCobro = parseFloat(monto) || 0;
+  const superaSaldo = montoCobro > saldoACobrar + 0.005;
+
+  function elegirIva(activar: boolean, tasa: 0.21 | 0.105 = tasaIva) {
+    if (!pagoModal) return;
+    setConIva(activar);
+    setTasaIva(tasa);
+    const nuevoSaldo = activar
+      ? Math.max(0, pagoModal.montoNeto * (1 + tasa) - pagoModal.totalPagado)
+      : pagoModal.saldoPendiente;
+    setMonto(nuevoSaldo.toFixed(2));
+  }
 
   async function registrarCobro() {
-    if (!pagoModal || montoBase <= 0) {
+    if (!pagoModal || montoCobro <= 0) {
       toast({ title: "Ingresá un monto válido", variant: "destructive" }); return;
+    }
+    if (superaSaldo) {
+      toast({ title: "El monto supera el saldo pendiente", variant: "destructive" }); return;
     }
     setLoadingPago(true);
     try {
-      // Si activó IVA y la factura no lo tenía, actualizamos la factura primero
-      if (conIva && Number(pagoModal.tasaIvaActual) === 0) {
-        await fetch(`/api/facturas/${pagoModal.facturaId}`, {
+      if (agregaIva) {
+        const ivaRes = await fetch(`/api/facturas/${pagoModal.facturaId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tasaIva }),
         });
+        if (!ivaRes.ok) {
+          const ivaJson = await ivaRes.json();
+          toast({ title: "No se pudo aplicar el IVA", description: ivaJson.error, variant: "destructive" });
+          return;
+        }
       }
 
-      // Registrar el pago (monto incluye IVA si aplica)
       const res = await fetch("/api/cobranza", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clienteId: clienteDetalle!.id,
           facturaId: pagoModal.facturaId,
-          monto: totalConIva,
+          monto: montoCobro,
           tipoPago,
           observaciones: observaciones || undefined,
         }),
@@ -185,7 +227,9 @@ export default function CobranzaPage() {
         await abrirDetalle(clienteDetalle!);
         cargarDatos();
       } else {
-        toast({ title: "Error", description: json.error, variant: "destructive" });
+        const description = typeof json.error === "string" ? json.error : "Revisá los datos del cobro";
+        toast({ title: "Error", description, variant: "destructive" });
+        if (agregaIva) await abrirDetalle(clienteDetalle!);
       }
     } finally {
       setLoadingPago(false);
@@ -475,35 +519,28 @@ export default function CobranzaPage() {
           {pagoModal && (
             <div className="space-y-4">
               <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-sm">
-                <span className="text-red-600 font-medium">Saldo pendiente: {formatCurrency(pagoModal.saldoPendiente)}</span>
+                <span className="text-red-600 font-medium">Saldo pendiente: {formatCurrency(saldoACobrar)}</span>
                 <span className="text-gray-400 text-xs ml-2">(podés cobrar un monto parcial)</span>
+                {Number(pagoModal.tasaIvaActual) > 0 && (
+                  <p className="text-xs text-blue-600 mt-1">Incluye IVA {Math.round(Number(pagoModal.tasaIvaActual) * 1000) / 10}%</p>
+                )}
               </div>
 
-              {/* Monto base */}
-              <div className="space-y-1">
-                <Label>Monto a cobrar (base sin IVA) *</Label>
-                <Input
-                  type="number" min="0.01" step="0.01"
-                  placeholder="0.00"
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                />
-              </div>
-
-              {/* Toggle IVA */}
+              {/* Toggle IVA: solo para facturas que todavía no tienen IVA */}
+              {facturaSinIva && (
               <div className="space-y-2">
-                <Label>¿Cobrar con IVA?</Label>
+                <Label>¿Facturar con IVA?</Label>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setConIva(false)}
+                    onClick={() => elegirIva(false)}
                     className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-colors ${!conIva ? "border-pink-600 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-600"}`}
                   >
                     Sin IVA
                   </button>
                   <button
                     type="button"
-                    onClick={() => setConIva(true)}
+                    onClick={() => elegirIva(true)}
                     className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-colors ${conIva ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}
                   >
                     Con IVA
@@ -513,41 +550,45 @@ export default function CobranzaPage() {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setTasaIva(0.21)}
+                      onClick={() => elegirIva(true, 0.21)}
                       className={`flex-1 py-1.5 px-3 rounded-lg border-2 text-sm transition-colors ${tasaIva === 0.21 ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500"}`}
                     >
                       21%
                     </button>
                     <button
                       type="button"
-                      onClick={() => setTasaIva(0.105)}
+                      onClick={() => elegirIva(true, 0.105)}
                       className={`flex-1 py-1.5 px-3 rounded-lg border-2 text-sm transition-colors ${tasaIva === 0.105 ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500"}`}
                     >
                       10.5%
                     </button>
                   </div>
                 )}
+                {agregaIva && (
+                  <p className="text-xs text-blue-600">
+                    La factura pasará a incluir IVA {tasaIva === 0.21 ? "21" : "10,5"}% sobre {formatCurrency(pagoModal.montoNeto)}.
+                  </p>
+                )}
               </div>
-
-              {/* Resumen de cobro */}
-              {montoBase > 0 && (
-                <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1 border border-gray-100">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Base</span>
-                    <span>{formatCurrency(montoBase)}</span>
-                  </div>
-                  {conIva && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>IVA {Math.round(tasaIva * 100)}%</span>
-                      <span>{formatCurrency(ivaCalculado)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold border-t border-gray-200 pt-1 mt-1 text-gray-900">
-                    <span>Total a cobrar</span>
-                    <span className="text-pink-600">{formatCurrency(totalConIva)}</span>
-                  </div>
-                </div>
               )}
+
+              {/* Monto a cobrar (final, con IVA si corresponde) */}
+              <div className="space-y-1">
+                <Label>Monto a cobrar *</Label>
+                <Input
+                  type="number" min="0.01" step="0.01"
+                  max={saldoACobrar}
+                  placeholder="0.00"
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                />
+                {superaSaldo && (
+                  <p className="text-xs text-red-600">No puede superar el saldo de {formatCurrency(saldoACobrar)}</p>
+                )}
+                {montoCobro > 0 && !superaSaldo && montoCobro < saldoACobrar - 0.005 && (
+                  <p className="text-xs text-gray-500">Quedará un saldo de {formatCurrency(saldoACobrar - montoCobro)}</p>
+                )}
+              </div>
 
               {/* Método de pago */}
               <div className="space-y-1">
@@ -581,8 +622,8 @@ export default function CobranzaPage() {
 
               <div className="flex gap-3 justify-end pt-1">
                 <Button variant="outline" onClick={() => setPagoModal(null)}>Cancelar</Button>
-                <Button onClick={registrarCobro} disabled={loadingPago || montoBase <= 0}>
-                  {loadingPago ? "Guardando..." : `Registrar ${formatCurrency(totalConIva)}`}
+                <Button onClick={registrarCobro} disabled={loadingPago || montoCobro <= 0 || superaSaldo}>
+                  {loadingPago ? "Guardando..." : `Registrar ${formatCurrency(montoCobro)}`}
                 </Button>
               </div>
             </div>

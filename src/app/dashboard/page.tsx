@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import ResumenDineroDisponible from "@/components/dashboard/ResumenDineroDisponible";
+import { FACTURA_VIGENTE, facturasConSaldo } from "@/lib/cuentaCorriente";
 import {
   ShoppingCart, DollarSign, AlertCircle, TrendingUp,
   Clock, AlertTriangle, ArrowRight, TrendingDown, Minus,
@@ -21,8 +22,7 @@ async function getDashboardStats() {
     pedidosPendientes,
     alertasNoLeidas,
     cobradoHoy,
-    deudaTotal,
-    facturasVencidas,
+    facturasVigentes,
     ultimosPedidos,
     clientesTopHoy,
     vendidoHoy,
@@ -42,17 +42,10 @@ async function getDashboardStats() {
       _sum: { monto: true },
       where: { fechaPago: { gte: hoyInicio, lt: hoyFin } },
     }),
-    // Deuda total pendiente
-    db.factura.aggregate({
-      _sum: { montoTotal: true },
-      where: { estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] } },
-    }),
-    // Facturas vencidas (más de 30 días sin cobrar)
-    db.factura.count({
-      where: {
-        estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] },
-        fecha: { lte: new Date(ahora.getTime() - 30 * 24 * 60 * 60 * 1000) },
-      },
+    // Facturas vigentes con sus pagos: de acá salen deuda, vencidas y antigüedad
+    db.factura.findMany({
+      where: FACTURA_VIGENTE,
+      select: { fecha: true, montoTotal: true, pagos: { select: { monto: true } } },
     }),
     // Últimos 8 pedidos
     db.pedido.findMany({
@@ -97,14 +90,17 @@ async function getDashboardStats() {
   });
   const clienteMap = new Map(clientes.map((c) => [c.id, c.nombre]));
 
+  const pendientes = facturasConSaldo(facturasVigentes);
+  const limiteVencida = new Date(ahora.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const facturasVencidas = pendientes.filter((f) => f.factura.fecha <= limiteVencida).length;
+
   // Antigüedad de la deuda más vieja
-  const facturasMasVieja = await db.factura.findFirst({
-    where: { estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] } },
-    orderBy: { fecha: "asc" },
-    select: { fecha: true },
-  });
-  const diasDeudaMax = facturasMasVieja
-    ? Math.floor((ahora.getTime() - new Date(facturasMasVieja.fecha).getTime()) / (1000 * 60 * 60 * 24))
+  const fechaMasVieja = pendientes.reduce<Date | null>(
+    (oldest, f) => (!oldest || f.factura.fecha < oldest ? f.factura.fecha : oldest),
+    null
+  );
+  const diasDeudaMax = fechaMasVieja
+    ? Math.floor((ahora.getTime() - fechaMasVieja.getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
   return {
@@ -115,7 +111,7 @@ async function getDashboardStats() {
     vendidoHoy: Number(vendidoHoy._sum.montoTotal ?? 0),
     gastadoHoy: Number(gastadoHoyAgg._sum.monto ?? 0),
     netoHoy: Number(cobradoHoy._sum.monto ?? 0) - Number(gastadoHoyAgg._sum.monto ?? 0),
-    deudaTotal: Number(deudaTotal._sum.montoTotal ?? 0),
+    deudaTotal: pendientes.reduce((s, f) => s + f.saldo, 0),
     deudaProveedores: Number(deudaProveedoresAgg._sum.montoTotal ?? 0),
     facturasVencidas,
     diasDeudaMax,

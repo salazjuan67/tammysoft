@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { FACTURA_VIGENTE, facturasConSaldo } from "@/lib/cuentaCorriente";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { ShoppingCart, DollarSign, Calendar, Plus, ArrowRight } from "lucide-react";
@@ -27,9 +28,9 @@ export default async function ClienteDashboard() {
 
   const [pedidosActivos, deudaTotal, proximaEntrega, ultimosPedidos] = await Promise.all([
     db.pedido.count({ where: { clienteId, estado: { in: ["PENDIENTE", "EN_PRODUCCION"] } } }),
-    db.factura.aggregate({
-      _sum: { montoTotal: true },
-      where: { clienteId, estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] } },
+    db.factura.findMany({
+      where: { clienteId, ...FACTURA_VIGENTE },
+      select: { montoTotal: true, pagos: { select: { monto: true } } },
     }),
     db.pedido.findFirst({
       where: { clienteId, estado: { in: ["PENDIENTE", "EN_PRODUCCION"] }, fechaEntrega: { gte: ahora } },
@@ -44,7 +45,7 @@ export default async function ClienteDashboard() {
     }),
   ]);
 
-  const deuda = Number(deudaTotal._sum.montoTotal ?? 0);
+  const deuda = facturasConSaldo(deudaTotal).reduce((s, f) => s + f.saldo, 0);
 
   return (
     <div className="space-y-6">

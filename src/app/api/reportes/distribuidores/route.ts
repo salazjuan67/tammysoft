@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -89,16 +90,18 @@ export async function GET(req: NextRequest) {
     }
 
     const monto = Number(pedido.montoTotal);
-    const ivaFactura = pedido.factura ? Number(pedido.factura.montoIva) : 0;
-    const totalFacturado = pedido.factura ? Number(pedido.factura.montoTotal) : 0;
-    const efectivo = pedido.factura
-      ? pedido.factura.pagos.filter((p) => p.tipoPago === "EFECTIVO").reduce((s, p) => s + Number(p.monto), 0)
+    const factura = pedido.factura?.estado === "ANULADA" ? null : pedido.factura;
+    const ivaFactura = factura ? Number(factura.montoIva) : 0;
+    const efectivo = factura
+      ? factura.pagos.filter((p) => p.tipoPago === "EFECTIVO").reduce((s, p) => s + Number(p.monto), 0)
       : 0;
-    const transferencia = pedido.factura
-      ? pedido.factura.pagos.filter((p) => p.tipoPago === "TRANSFERENCIA").reduce((s, p) => s + Number(p.monto), 0)
+    const transferencia = factura
+      ? factura.pagos.filter((p) => p.tipoPago === "TRANSFERENCIA").reduce((s, p) => s + Number(p.monto), 0)
       : 0;
-    const totalPagado = efectivo + transferencia;
-    const saldo = Math.max(0, totalFacturado - totalPagado);
+    // Un pedido entregado sin factura vigente sigue debiéndose completo; una anulada no genera deuda.
+    const saldo = factura
+      ? saldoFactura(factura.montoTotal, factura.pagos).saldo
+      : pedido.factura ? 0 : monto;
 
     const c = distribuidores[distId].clientes[clienteNombre];
     c.cantidadPedidos += 1;

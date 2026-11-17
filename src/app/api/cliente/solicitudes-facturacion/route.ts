@@ -34,6 +34,28 @@ export async function POST(req: NextRequest) {
 
   const { tasaIva, notas, items } = parsed.data;
 
+  const pedidoIds = [...new Set(items.map((i) => i.pedidoId))];
+  if (pedidoIds.length !== items.length) {
+    return NextResponse.json({ error: "Hay pedidos repetidos en la solicitud" }, { status: 400 });
+  }
+
+  const pedidos = await db.pedido.findMany({
+    where: { id: { in: pedidoIds }, clienteId: cliente.id, estado: "ENTREGADO" },
+    select: { id: true, montoTotal: true, notas: true },
+  });
+  if (pedidos.length !== pedidoIds.length) {
+    return NextResponse.json({ error: "Algún pedido no existe, no es tuyo o todavía no fue entregado" }, { status: 400 });
+  }
+
+  const yaSolicitados = await db.solicitudItem.count({
+    where: { pedidoId: { in: pedidoIds }, solicitud: { estado: { not: "RECHAZADA" } } },
+  });
+  if (yaSolicitados > 0) {
+    return NextResponse.json({ error: "Algún pedido ya está incluido en otra solicitud" }, { status: 409 });
+  }
+
+  const pedidosMap = new Map(pedidos.map((p) => [p.id, p]));
+
   // Calcular totales
   let totalEfectivo = 0;
   let totalBase = 0;
@@ -41,8 +63,10 @@ export async function POST(req: NextRequest) {
   let totalTransfer = 0;
 
   const itemsCalculados = items.map((item) => {
-    const montoEfectivo = item.pedidoMontoTotal * (1 - item.porcentajeFacturado);
-    const montoBase = item.pedidoMontoTotal * item.porcentajeFacturado;
+    const pedido = pedidosMap.get(item.pedidoId)!;
+    const pedidoMontoTotal = Number(pedido.montoTotal);
+    const montoEfectivo = pedidoMontoTotal * (1 - item.porcentajeFacturado);
+    const montoBase = pedidoMontoTotal * item.porcentajeFacturado;
     const montoIva = montoBase * tasaIva;
     const montoTransfer = montoBase + montoIva;
 
@@ -53,8 +77,8 @@ export async function POST(req: NextRequest) {
 
     return {
       pedidoId: item.pedidoId,
-      pedidoMontoTotal: item.pedidoMontoTotal,
-      pedidoNotas: item.pedidoNotas ?? null,
+      pedidoMontoTotal,
+      pedidoNotas: pedido.notas ?? item.pedidoNotas ?? null,
       porcentajeFacturado: item.porcentajeFacturado,
       montoEfectivo,
       montoBase,

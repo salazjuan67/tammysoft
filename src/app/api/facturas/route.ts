@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FACTURA_VIGENTE, TOLERANCIA, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -23,11 +24,9 @@ export async function GET(req: NextRequest) {
   const where: Record<string, any> = {};
   if (clienteId) where.clienteId = clienteId;
 
-  // "cobrada" → COBRADA | "sin-cobrar" → PENDIENTE + PARCIALMENTE_COBRADA | "todas" → sin filtro
-  if (estadoFiltro === "cobrada") {
-    where.estado = "COBRADA";
-  } else if (estadoFiltro === "sin-cobrar") {
-    where.estado = { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] };
+  // "cobrada" y "sin-cobrar" se deciden por el saldo real, no por el estado guardado
+  if (estadoFiltro === "cobrada" || estadoFiltro === "sin-cobrar") {
+    where.estado = FACTURA_VIGENTE.estado;
   }
 
   if (desde || hasta) {
@@ -37,32 +36,35 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const [facturas, total] = await Promise.all([
-    db.factura.findMany({
-      where,
-      include: {
-        cliente: { select: { id: true, nombre: true } },
-        pagos: { select: { monto: true } },
-      },
-      orderBy: { fecha: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    db.factura.count({ where }),
-  ]);
-
-  const data = facturas.map(({ pagos, ...f }) => {
-    const totalPagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
-    const saldoPendiente = Math.max(0, Number(f.montoTotal) - totalPagado);
-    return {
-      ...f,
-      montoTotal: Number(f.montoTotal),
-      montoNeto: Number(f.montoNeto),
-      montoIva: Number(f.montoIva),
-      tasaIva: Number(f.tasaIva),
-      saldoPendiente,
-    };
+  const facturas = await db.factura.findMany({
+    where,
+    include: {
+      cliente: { select: { id: true, nombre: true } },
+      pagos: { select: { monto: true } },
+    },
+    orderBy: { fecha: "desc" },
   });
+
+  const filtradas = facturas
+    .map(({ pagos, ...f }) => {
+      const { saldo } = saldoFactura(f.montoTotal, pagos);
+      return {
+        ...f,
+        montoTotal: Number(f.montoTotal),
+        montoNeto: Number(f.montoNeto),
+        montoIva: Number(f.montoIva),
+        tasaIva: Number(f.tasaIva),
+        saldoPendiente: f.estado === "ANULADA" ? 0 : saldo,
+      };
+    })
+    .filter((f) =>
+      estadoFiltro === "sin-cobrar" ? f.saldoPendiente > TOLERANCIA
+      : estadoFiltro === "cobrada" ? f.saldoPendiente <= TOLERANCIA
+      : true
+    );
+
+  const total = filtradas.length;
+  const data = filtradas.slice((page - 1) * pageSize, page * pageSize);
 
   return NextResponse.json({
     data,

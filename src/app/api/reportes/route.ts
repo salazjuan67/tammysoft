@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FACTURA_VIGENTE, TOLERANCIA, saldoFactura } from "@/lib/cuentaCorriente";
 
 const MESES_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const DIAS_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -222,7 +223,7 @@ export async function GET(req: NextRequest) {
   if (tipo === "deuda-envejecida") {
     const ahora = new Date();
     const facturas = await db.factura.findMany({
-      where: { estado: { in: ["PENDIENTE", "PARCIALMENTE_COBRADA"] } },
+      where: FACTURA_VIGENTE,
       include: {
         cliente: { select: { id: true, nombre: true } },
         pagos: { select: { monto: true } },
@@ -238,9 +239,8 @@ export async function GET(req: NextRequest) {
     }> = {};
 
     for (const f of facturas) {
-      const pagado = f.pagos.reduce((s, p) => s + Number(p.monto), 0);
-      const saldo = Number(f.montoTotal) - pagado;
-      if (saldo <= 0) continue;
+      const { saldo } = saldoFactura(f.montoTotal, f.pagos);
+      if (saldo <= TOLERANCIA) continue;
 
       const dias = Math.floor((ahora.getTime() - new Date(f.fecha).getTime()) / (1000 * 60 * 60 * 24));
       const id = f.clienteId;
