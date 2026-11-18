@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
@@ -94,9 +94,8 @@ export default function ResetPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="password">Nueva contraseña</Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="Mínimo 6 caracteres"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -106,9 +105,8 @@ export default function ResetPasswordPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm">Repetir contraseña</Label>
-                <Input
+                <PasswordInput
                   id="confirm"
-                  type="password"
                   placeholder="Repetí la contraseña"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

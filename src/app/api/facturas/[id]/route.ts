@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
+import { importeArca, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const factura = await db.factura.findUnique({
     where: { id },
     include: {
-      cliente: { select: { id: true, nombre: true, email: true, telefono: true } },
+      cliente: { select: { id: true, nombre: true, email: true, telefono: true, direccion: true } },
       pedido: {
         include: {
           items: {
@@ -37,6 +37,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       pagos: factura.pagos.map((p) => ({ ...p, monto: Number(p.monto) })),
       totalPagado,
       saldoPendiente: factura.estado === "ANULADA" ? 0 : saldo,
+      porcentajeArca: Number(factura.porcentajeArca),
+      tasaIvaArca: Number(factura.tasaIvaArca),
+      arca: importeArca(factura.montoTotal, factura.porcentajeArca, factura.tasaIvaArca),
     },
   });
 }

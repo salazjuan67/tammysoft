@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, FileText, User, Package, Receipt, Wallet, CreditCard } from "lucide-react";
+import { ArrowLeft, Trash2, FileText, User, Package, Receipt, Wallet, CreditCard, Printer, Landmark } from "lucide-react";
 
 interface FacturaDetalle {
   id: string;
@@ -30,6 +30,12 @@ interface FacturaDetalle {
   tasaIva: string | number;
   totalPagado: number;
   saldoPendiente: number;
+  porcentajeArca: number;
+  tasaIvaArca: number;
+  facturadoArca: boolean;
+  comprobanteArca: string | null;
+  fechaArca: string | null;
+  arca: { total: number; neto: number; iva: number };
   pagos: { id: string; monto: number; tipoPago: string; fechaPago: string; observaciones: string | null }[];
   estado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA";
   cliente: { id: string; nombre: string; email: string | null; telefono: string | null };
@@ -130,6 +136,10 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
         {/* Actions */}
         {!esAnulada && (
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.open(`/dashboard/facturacion/${factura.id}/remito`, "_blank")}>
+              <Printer className="h-4 w-4 mr-2" />
+              Remito
+            </Button>
             {tieneSaldo && (
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -262,6 +272,46 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
           </table>
         </CardContent>
       </Card>
+
+      {/* ARCA */}
+      {!esAnulada && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between text-gray-600">
+              <span className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Facturación ARCA</span>
+              {factura.facturadoArca ? (
+                <Badge variant="success" className="font-mono">{factura.comprobanteArca}</Badge>
+              ) : (
+                <Badge variant="secondary">Sin facturar</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-4 gap-3 text-center text-sm">
+            <div>
+              <p className="text-gray-500 text-xs">Porcentaje</p>
+              <p className="font-bold text-gray-900">{Math.round(factura.porcentajeArca * 10000) / 100}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">Neto</p>
+              <p className="font-bold text-gray-900">{formatCurrency(factura.arca.neto)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">IVA {factura.tasaIvaArca === 0.105 ? "10,5" : "21"}%</p>
+              <p className="font-bold text-gray-900">{formatCurrency(factura.arca.iva)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">Total ARCA</p>
+              <p className="font-bold text-pink-600">{formatCurrency(factura.arca.total)}</p>
+            </div>
+            {factura.facturadoArca && factura.fechaArca && (
+              <p className="col-span-4 text-xs text-gray-500">Facturada en ARCA el {formatDate(factura.fechaArca)}</p>
+            )}
+            {!factura.facturadoArca && (
+              <p className="col-span-4 text-xs text-gray-500">El porcentaje se define desde el listado de Facturación.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary card */}
       <Card className={esCobrada ? "border-green-200 bg-green-50" : esAnulada ? "border-gray-200 bg-gray-50" : "border-red-200 bg-red-50"}>

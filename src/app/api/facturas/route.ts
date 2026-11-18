@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { FACTURA_VIGENTE, TOLERANCIA, saldoFactura } from "@/lib/cuentaCorriente";
+import { FACTURA_VIGENTE, TOLERANCIA, importeArca, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -23,6 +23,10 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = {};
   if (clienteId) where.clienteId = clienteId;
+
+  const arcaFiltro = searchParams.get("arca") ?? "";
+  if (arcaFiltro === "pendiente") where.facturadoArca = false;
+  else if (arcaFiltro === "facturado") where.facturadoArca = true;
 
   // "cobrada" y "sin-cobrar" se deciden por el saldo real, no por el estado guardado
   if (estadoFiltro === "cobrada" || estadoFiltro === "sin-cobrar") {
@@ -55,6 +59,9 @@ export async function GET(req: NextRequest) {
         montoIva: Number(f.montoIva),
         tasaIva: Number(f.tasaIva),
         saldoPendiente: f.estado === "ANULADA" ? 0 : saldo,
+        porcentajeArca: Number(f.porcentajeArca),
+        tasaIvaArca: Number(f.tasaIvaArca),
+        arca: importeArca(f.montoTotal, f.porcentajeArca, f.tasaIvaArca),
       };
     })
     .filter((f) =>

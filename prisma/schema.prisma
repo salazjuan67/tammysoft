@@ -237,6 +237,12 @@ model Factura {
   tasaIva     Decimal       @db.Decimal(5, 4) @default(0.21)
   estado      EstadoFactura @default(PENDIENTE)
   numero      Int           @unique @default(autoincrement())
+  // Parte fiscal (ARCA), independiente de lo que se cobra: importe = montoTotal x porcentajeArca, IVA incluido.
+  porcentajeArca  Decimal   @db.Decimal(5, 4) @default(0)
+  tasaIvaArca     Decimal   @db.Decimal(5, 4) @default(0.21)
+  facturadoArca   Boolean   @default(false)
+  comprobanteArca String?
+  fechaArca       DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

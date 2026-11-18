@@ -40,6 +40,13 @@ export async function recalcularEstadoFactura(tx: { factura: typeof db.factura }
   return estado;
 }
 
+/** Importe a facturar en ARCA (IVA incluido) y su desglose en neto e IVA. */
+export function importeArca(montoTotal: Monto, porcentaje: Monto, tasaIva: Monto) {
+  const total = redondear(Number(montoTotal) * Number(porcentaje));
+  const neto = redondear(total / (1 + Number(tasaIva)));
+  return { total, neto, iva: redondear(total - neto) };
+}
+
 /** Suma los saldos de facturas (ya filtradas como vigentes) y devuelve solo las que deben algo. */
 export function facturasConSaldo<T extends { montoTotal: Monto; pagos: { monto: Monto }[] }>(facturas: T[]) {
   return facturas
