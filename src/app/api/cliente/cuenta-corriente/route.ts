@@ -28,6 +28,7 @@ export async function GET() {
     where: { clienteId: cliente.id, ...FACTURA_VIGENTE },
     include: {
       pagos: { select: { monto: true } },
+      notasCredito: { select: { monto: true } },
     },
   });
 

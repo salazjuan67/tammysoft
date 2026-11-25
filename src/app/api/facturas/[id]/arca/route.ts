@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { importeArca } from "@/lib/cuentaCorriente";
+import { importeArca, ivaArcaAdicional, montoACobrar, recalcularEstadoFactura } from "@/lib/cuentaCorriente";
 
 const arcaSchema = z.object({
   porcentajeArca: z.number().min(0).max(100).optional(),
@@ -59,7 +59,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.fechaArca = null;
   }
 
-  const actualizada = await db.factura.update({ where: { id }, data });
+  const actualizada = await db.$transaction(async (tx) => {
+    const f = await tx.factura.update({ where: { id }, data });
+    // Marcar/desmarcar ARCA cambia el IVA adicional → recalcular estado de cobro
+    if (facturadoArca !== undefined) await recalcularEstadoFactura(tx, id);
+    return f;
+  });
+
+  const arca = importeArca(actualizada.montoTotal, actualizada.porcentajeArca, actualizada.tasaIvaArca);
+  const ivaExtra = ivaArcaAdicional(actualizada);
 
   return NextResponse.json({
     data: {
@@ -69,7 +77,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       facturadoArca: actualizada.facturadoArca,
       comprobanteArca: actualizada.comprobanteArca,
       fechaArca: actualizada.fechaArca,
-      arca: importeArca(actualizada.montoTotal, actualizada.porcentajeArca, actualizada.tasaIvaArca),
+      arca,
+      ivaArcaAdicional: ivaExtra,
+      montoACobrar: montoACobrar(actualizada),
     },
   });
 }

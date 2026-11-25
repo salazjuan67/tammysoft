@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { FACTURA_VIGENTE, TOLERANCIA, saldoFactura } from "@/lib/cuentaCorriente";
+import { FACTURA_VIGENTE, TOLERANCIA, montoACobrar, saldoFactura } from "@/lib/cuentaCorriente";
 
 const MESES_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const DIAS_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -227,6 +227,7 @@ export async function GET(req: NextRequest) {
       include: {
         cliente: { select: { id: true, nombre: true } },
         pagos: { select: { monto: true } },
+        notasCredito: { select: { monto: true } },
       },
       orderBy: { fecha: "asc" },
     });
@@ -239,7 +240,7 @@ export async function GET(req: NextRequest) {
     }> = {};
 
     for (const f of facturas) {
-      const { saldo } = saldoFactura(f.montoTotal, f.pagos);
+      const { saldo } = saldoFactura(montoACobrar(f), f.pagos);
       if (saldo <= TOLERANCIA) continue;
 
       const dias = Math.floor((ahora.getTime() - new Date(f.fecha).getTime()) / (1000 * 60 * 60 * 24));

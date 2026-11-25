@@ -45,6 +45,12 @@ interface FacturaDetalle {
   montoNeto: number;
   montoIva: number;
   tasaIva: number;
+  ivaArcaAdicional?: number;
+  montoACobrar?: number;
+  totalCreditos?: number;
+  facturadoArca?: boolean;
+  comprobanteArca?: string | null;
+  porcentajeArca?: number;
   totalPagado: number;
   saldoPendiente: number;
   estado: string;
@@ -547,15 +553,33 @@ export default function CobranzaPage() {
                           {formatDate(factura.fecha)}
                           {factura.pedido && ` · Entrega: ${formatDate(factura.pedido.fechaEntrega)}`}
                         </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Number(factura.tasaIva) > 0 && (
+                            <Badge variant="info" className="text-xs">IVA {Math.round(Number(factura.tasaIva) * 100)}%</Badge>
+                          )}
+                          {factura.facturadoArca && (
+                            <Badge variant="success" className="text-xs font-mono">
+                              ARCA {factura.comprobanteArca}
+                            </Badge>
+                          )}
+                          {!!factura.ivaArcaAdicional && factura.ivaArcaAdicional > 0 && (
+                            <Badge variant="warning" className="text-xs">
+                              +IVA ARCA {formatCurrency(factura.ivaArcaAdicional)}
+                            </Badge>
+                          )}
+                          {!!factura.totalCreditos && factura.totalCreditos > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              NC −{formatCurrency(factura.totalCreditos)}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      {Number(factura.tasaIva) > 0 && (
-                        <Badge variant="info" className="text-xs shrink-0">IVA {Math.round(Number(factura.tasaIva) * 100)}%</Badge>
-                      )}
                     </div>
 
                     {/* Montos */}
                     <div className="text-right text-sm shrink-0">
-                      <p className="text-gray-500 text-xs">Total: {formatCurrency(factura.montoTotal)}</p>
+                      <p className="text-gray-500 text-xs">Base: {formatCurrency(factura.montoTotal)}</p>
+                      <p className="text-gray-700 text-xs">A cobrar: {formatCurrency(factura.montoACobrar ?? factura.montoTotal)}</p>
                       <p className="text-green-600 text-xs">Cobrado: {formatCurrency(factura.totalPagado)}</p>
                       <p className="font-bold text-red-600">Debe: {formatCurrency(factura.saldoPendiente)}</p>
                     </div>

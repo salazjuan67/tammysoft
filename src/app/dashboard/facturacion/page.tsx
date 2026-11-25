@@ -25,6 +25,9 @@ interface Factura {
   fecha: string;
   montoTotal: string | number;
   saldoPendiente: number;
+  ivaArcaAdicional?: number;
+  montoACobrar?: number;
+  totalCreditos?: number;
   estado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA";
   cliente: { id: string; nombre: string };
   porcentajeArca: number;
@@ -190,12 +193,16 @@ export default function FacturacionPage() {
     if (ok) {
       toast({ title: "Marcada como facturada en ARCA" });
       setMarcarArca(null);
+      await fetchFacturas(); // el IVA ARCA se suma a la deuda → refrescar saldos
     }
   }
 
   async function desmarcarArca(factura: Factura) {
     if (!confirm(`¿Desmarcar la factura FAC-${String(factura.numero).padStart(5, "0")} como facturada en ARCA?`)) return;
-    if (await actualizarArca(factura, { facturadoArca: false })) toast({ title: "Desmarcada" });
+    if (await actualizarArca(factura, { facturadoArca: false })) {
+      toast({ title: "Desmarcada" });
+      await fetchFacturas();
+    }
   }
 
   function imprimirRemito(factura: Factura) {
@@ -338,8 +345,20 @@ export default function FacturacionPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-600">{formatDate(f.fecha)}</td>
                         <td className="px-4 py-3 text-gray-900">{f.cliente.nombre}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                          {formatCurrency(Number(f.montoTotal))}
+                        <td className="px-4 py-3 text-right">
+                          <p className="font-semibold text-gray-900">
+                            {formatCurrency(f.montoACobrar ?? Number(f.montoTotal))}
+                          </p>
+                          {!!f.ivaArcaAdicional && f.ivaArcaAdicional > 0 && (
+                            <p className="text-[11px] text-amber-700 whitespace-nowrap">
+                              Base {formatCurrency(Number(f.montoTotal))} + IVA ARCA {formatCurrency(f.ivaArcaAdicional)}
+                            </p>
+                          )}
+                          {!!f.totalCreditos && f.totalCreditos > 0 && (
+                            <p className="text-[11px] text-blue-600 whitespace-nowrap">
+                              − NC {formatCurrency(f.totalCreditos)}
+                            </p>
+                          )}
                         </td>
                         <td className={`px-4 py-3 text-right font-semibold ${f.saldoPendiente > 0 ? "text-red-600" : "text-gray-400"}`}>
                           {formatCurrency(f.saldoPendiente)}

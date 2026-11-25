@@ -45,7 +45,15 @@ async function getDashboardStats() {
     // Facturas vigentes con sus pagos: de acá salen deuda, vencidas y antigüedad
     db.factura.findMany({
       where: FACTURA_VIGENTE,
-      select: { fecha: true, montoTotal: true, pagos: { select: { monto: true } } },
+      select: {
+        fecha: true,
+        montoTotal: true,
+        porcentajeArca: true,
+        tasaIvaArca: true,
+        facturadoArca: true,
+        pagos: { select: { monto: true } },
+        notasCredito: { select: { monto: true } },
+      },
     }),
     // Últimos 8 pedidos
     db.pedido.findMany({

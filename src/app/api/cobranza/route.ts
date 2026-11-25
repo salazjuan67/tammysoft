@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pagoSchema } from "@/lib/validations";
-import { FACTURA_VIGENTE, TOLERANCIA, facturasConSaldo, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
+import { FACTURA_VIGENTE, TOLERANCIA, facturasConSaldo, ivaArcaAdicional, montoACobrar, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
 
 class CobroError extends Error {}
 
@@ -31,7 +31,14 @@ export async function GET(req: NextRequest) {
       }),
       db.factura.findMany({
         where: FACTURA_VIGENTE,
-        select: { montoTotal: true, pagos: { select: { monto: true } } },
+        select: {
+          montoTotal: true,
+          porcentajeArca: true,
+          tasaIvaArca: true,
+          facturadoArca: true,
+          pagos: { select: { monto: true } },
+          notasCredito: { select: { monto: true } },
+        },
       }),
     ]);
 
@@ -57,6 +64,7 @@ export async function GET(req: NextRequest) {
           select: { id: true, monto: true, tipoPago: true, fechaPago: true, observaciones: true },
           orderBy: { fechaPago: "asc" },
         },
+        notasCredito: { select: { id: true, numero: true, monto: true, motivo: true, fecha: true } },
         pedido: { select: { id: true, fechaEntrega: true } },
       },
       orderBy: { fecha: "asc" },
@@ -64,7 +72,9 @@ export async function GET(req: NextRequest) {
 
     // Todas las facturas vigentes (también las saldadas), para poder editar cobros ya hechos.
     const data = facturas.map((f) => {
-      const { totalPagado, saldo } = saldoFactura(f.montoTotal, f.pagos);
+      const aCobrar = montoACobrar(f);
+      const ivaArca = ivaArcaAdicional(f);
+      const { totalPagado, saldo } = saldoFactura(aCobrar, f.pagos);
       return {
         id: f.id,
         numero: f.numero,
@@ -73,6 +83,12 @@ export async function GET(req: NextRequest) {
         montoNeto: Number(f.montoNeto),
         montoIva: Number(f.montoIva),
         tasaIva: Number(f.tasaIva),
+        ivaArcaAdicional: ivaArca,
+        montoACobrar: aCobrar,
+        totalCreditos: f.notasCredito.reduce((s, n) => s + Number(n.monto), 0),
+        facturadoArca: f.facturadoArca,
+        comprobanteArca: f.comprobanteArca,
+        porcentajeArca: Number(f.porcentajeArca),
         totalPagado,
         saldoPendiente: saldo,
         estado: f.estado,
@@ -81,6 +97,7 @@ export async function GET(req: NextRequest) {
           ...p,
           monto: Number(p.monto),
         })),
+        notasCredito: f.notasCredito.map((n) => ({ ...n, monto: Number(n.monto) })),
       };
     });
 
@@ -114,6 +131,7 @@ export async function GET(req: NextRequest) {
           },
           include: {
             pagos: { select: { monto: true } },
+            notasCredito: { select: { monto: true } },
             pedido: { select: { fechaEntrega: true } },
           },
         },
@@ -194,12 +212,15 @@ export async function POST(req: NextRequest) {
     const pago = await db.$transaction(async (tx) => {
       const factura = await tx.factura.findUnique({
         where: { id: facturaId },
-        include: { pagos: { select: { monto: true } } },
+        include: {
+          pagos: { select: { monto: true } },
+          notasCredito: { select: { monto: true } },
+        },
       });
       if (!factura || factura.clienteId !== clienteId) throw new CobroError("La factura no pertenece al cliente");
       if (factura.estado === "ANULADA") throw new CobroError("La factura está anulada");
 
-      const { saldo } = saldoFactura(factura.montoTotal, factura.pagos);
+      const { saldo } = saldoFactura(montoACobrar(factura), factura.pagos);
       if (monto > saldo + TOLERANCIA) {
         throw new CobroError(`El monto supera el saldo pendiente de la factura (${saldo.toFixed(2)})`);
       }

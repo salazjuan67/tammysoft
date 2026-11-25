@@ -30,7 +30,14 @@ export default async function ClienteDashboard() {
     db.pedido.count({ where: { clienteId, estado: { in: ["PENDIENTE", "EN_PRODUCCION"] } } }),
     db.factura.findMany({
       where: { clienteId, ...FACTURA_VIGENTE },
-      select: { montoTotal: true, pagos: { select: { monto: true } } },
+      select: {
+        montoTotal: true,
+        porcentajeArca: true,
+        tasaIvaArca: true,
+        facturadoArca: true,
+        pagos: { select: { monto: true } },
+        notasCredito: { select: { monto: true } },
+      },
     }),
     db.pedido.findFirst({
       where: { clienteId, estado: { in: ["PENDIENTE", "EN_PRODUCCION"] }, fechaEntrega: { gte: ahora } },

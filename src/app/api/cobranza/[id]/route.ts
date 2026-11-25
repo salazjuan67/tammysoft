@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pagoUpdateSchema } from "@/lib/validations";
-import { TOLERANCIA, recalcularEstadoFactura, redondear, saldoFactura } from "@/lib/cuentaCorriente";
+import { TOLERANCIA, montoACobrar, recalcularEstadoFactura, redondear, saldoFactura } from "@/lib/cuentaCorriente";
 
 class CobroError extends Error {}
 
@@ -36,7 +36,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         where: { id },
         include: {
           factura: {
-            include: { pagos: { select: { id: true, monto: true } } },
+            include: {
+              pagos: { select: { id: true, monto: true } },
+              notasCredito: { select: { monto: true } },
+            },
           },
         },
       });
@@ -46,7 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (actual.factura.estado === "ANULADA") throw new CobroError("La factura está anulada");
 
         const otrosPagos = actual.factura.pagos.filter((p) => p.id !== id);
-        const { saldo } = saldoFactura(actual.factura.montoTotal, otrosPagos);
+        const { saldo } = saldoFactura(montoACobrar(actual.factura), otrosPagos);
         // El saldo disponible para este cobro = lo que falta sin contar este pago
         if (data.monto > saldo + TOLERANCIA) {
           throw new CobroError(

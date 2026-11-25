@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { FACTURA_VIGENTE, TOLERANCIA, importeArca, saldoFactura } from "@/lib/cuentaCorriente";
+import { FACTURA_VIGENTE, TOLERANCIA, importeArca, ivaArcaAdicional, montoACobrar, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -45,19 +45,25 @@ export async function GET(req: NextRequest) {
     include: {
       cliente: { select: { id: true, nombre: true } },
       pagos: { select: { monto: true } },
+      notasCredito: { select: { monto: true } },
     },
     orderBy: { fecha: "desc" },
   });
 
   const filtradas = facturas
-    .map(({ pagos, ...f }) => {
-      const { saldo } = saldoFactura(f.montoTotal, pagos);
+    .map(({ pagos, notasCredito, ...f }) => {
+      const aCobrar = montoACobrar({ ...f, notasCredito });
+      const ivaArca = ivaArcaAdicional(f);
+      const { saldo } = saldoFactura(aCobrar, pagos);
       return {
         ...f,
         montoTotal: Number(f.montoTotal),
         montoNeto: Number(f.montoNeto),
         montoIva: Number(f.montoIva),
         tasaIva: Number(f.tasaIva),
+        ivaArcaAdicional: ivaArca,
+        totalCreditos: notasCredito.reduce((s, n) => s + Number(n.monto), 0),
+        montoACobrar: aCobrar,
         saldoPendiente: f.estado === "ANULADA" ? 0 : saldo,
         porcentajeArca: Number(f.porcentajeArca),
         tasaIvaArca: Number(f.tasaIvaArca),

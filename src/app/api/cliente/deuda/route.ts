@@ -14,6 +14,7 @@ export async function GET() {
     where: { clienteId, ...FACTURA_VIGENTE },
     include: {
       pagos: { select: { monto: true } },
+      notasCredito: { select: { monto: true } },
     },
     orderBy: { fecha: "asc" },
   });

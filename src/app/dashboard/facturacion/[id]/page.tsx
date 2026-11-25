@@ -5,20 +5,21 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, FileText, User, Package, Receipt, Wallet, CreditCard, Printer, Landmark } from "lucide-react";
+import { ArrowLeft, FileText, User, Package, Receipt, Wallet, CreditCard, Printer, Landmark, FileMinus2 } from "lucide-react";
+
+interface NotaCredito {
+  id: string;
+  numero: number;
+  monto: number;
+  motivo: string | null;
+  fecha: string;
+  comprobanteArca: string | null;
+}
 
 interface FacturaDetalle {
   id: string;
@@ -29,6 +30,9 @@ interface FacturaDetalle {
   montoIva: string | number;
   tasaIva: string | number;
   totalPagado: number;
+  totalCreditos: number;
+  ivaArcaAdicional: number;
+  montoACobrar: number;
   saldoPendiente: number;
   porcentajeArca: number;
   tasaIvaArca: number;
@@ -37,6 +41,7 @@ interface FacturaDetalle {
   fechaArca: string | null;
   arca: { total: number; neto: number; iva: number };
   pagos: { id: string; monto: number; tipoPago: string; fechaPago: string; observaciones: string | null }[];
+  notasCredito: NotaCredito[];
   estado: "PENDIENTE" | "PARCIALMENTE_COBRADA" | "COBRADA" | "ANULADA";
   cliente: { id: string; nombre: string; email: string | null; telefono: string | null };
   pedido: {
@@ -72,24 +77,63 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
   const [factura, setFactura] = useState<FacturaDetalle | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [ncOpen, setNcOpen] = useState(false);
+  const [ncTotal, setNcTotal] = useState(true);
+  const [ncMonto, setNcMonto] = useState("");
+  const [ncMotivo, setNcMotivo] = useState("");
+  const [ncComprobante, setNcComprobante] = useState("");
+
+  async function cargarFactura() {
+    const res = await fetch(`/api/facturas/${id}`);
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error ?? "Error");
+    setFactura(j.data);
+  }
 
   useEffect(() => {
-    fetch(`/api/facturas/${id}`)
-      .then((r) => r.json())
-      .then((j) => { setFactura(j.data); setLoading(false); })
+    cargarFactura()
+      .then(() => setLoading(false))
       .catch(() => { toast({ title: "Error al cargar factura", variant: "destructive" }); setLoading(false); });
   }, [id]);
 
-  async function anularFactura() {
+  function abrirNotaCredito(total: boolean) {
+    if (!factura) return;
+    setNcTotal(total);
+    setNcMonto(total ? String(factura.montoACobrar) : "");
+    setNcMotivo(total ? "Anulación total" : "");
+    setNcComprobante("");
+    setNcOpen(true);
+  }
+
+  async function emitirNotaCredito() {
+    if (!factura) return;
     setUpdating(true);
-    const res = await fetch(`/api/facturas/${id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (!res.ok) {
-      toast({ title: "Error", description: json.error, variant: "destructive" });
+    try {
+      const res = await fetch(`/api/facturas/${id}/notas-credito`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          total: ncTotal,
+          monto: ncTotal ? undefined : Number(ncMonto),
+          motivo: ncMotivo || undefined,
+          comprobanteArca: ncComprobante || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast({ title: "No se pudo emitir la NC", description: typeof json.error === "string" ? json.error : undefined, variant: "destructive" });
+        return;
+      }
+      const nota = json.data?.nota;
+      toast({
+        title: ncTotal ? "Factura anulada con nota de crédito" : "Nota de crédito emitida",
+        description: nota ? `NC-${String(nota.numero).padStart(5, "0")} por ${formatCurrency(nota.monto)}` : undefined,
+      });
+      setNcOpen(false);
+      await cargarFactura();
+      if (nota?.id) window.open(`/dashboard/facturacion/${id}/nota-credito/${nota.id}`, "_blank");
+    } finally {
       setUpdating(false);
-    } else {
-      toast({ title: "Factura anulada" });
-      router.push("/dashboard/facturacion");
     }
   }
 
@@ -150,29 +194,18 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
               </Button>
             )}
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" disabled={updating}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Anular
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Anular factura?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    La factura FAC-{String(factura.numero).padStart(5, "0")} quedará como anulada.
-                    Esta acción no se puede deshacer.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={anularFactura}>
-                    Sí, anular
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button variant="outline" onClick={() => abrirNotaCredito(false)} disabled={updating || factura.montoACobrar <= 0}>
+              <FileMinus2 className="h-4 w-4 mr-2" />
+              Nota de crédito
+            </Button>
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={() => abrirNotaCredito(true)}
+              disabled={updating || factura.montoACobrar <= 0}
+            >
+              Anular (NC total)
+            </Button>
           </div>
         )}
       </div>
@@ -303,6 +336,12 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
               <p className="text-gray-500 text-xs">Total ARCA</p>
               <p className="font-bold text-pink-600">{formatCurrency(factura.arca.total)}</p>
             </div>
+            {factura.facturadoArca && factura.ivaArcaAdicional > 0 && (
+              <p className="col-span-4 text-xs text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
+                Al marcarse facturada en ARCA se sumó IVA {formatCurrency(factura.ivaArcaAdicional)} a lo que debe el cliente.
+                Total a cobrar: {formatCurrency(Number(factura.montoTotal) + factura.ivaArcaAdicional)}.
+              </p>
+            )}
             {factura.facturadoArca && factura.fechaArca && (
               <p className="col-span-4 text-xs text-gray-500">Facturada en ARCA el {formatDate(factura.fechaArca)}</p>
             )}
@@ -325,22 +364,30 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
               {ESTADO_LABELS[factura.estado] ?? factura.estado}
             </Badge>
           </div>
-          {!esAnulada && (
-            <div className="grid grid-cols-3 gap-3 mt-3 text-center text-sm">
-              <div>
-                <p className="text-gray-500 text-xs">Total</p>
-                <p className="font-bold text-gray-900">{formatCurrency(Number(factura.montoTotal))}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Cobrado</p>
-                <p className="font-bold text-green-600">{formatCurrency(factura.totalPagado)}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Saldo pendiente</p>
-                <p className="font-bold text-red-600">{formatCurrency(factura.saldoPendiente)}</p>
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-center text-sm">
+            <div>
+              <p className="text-gray-500 text-xs">Base</p>
+              <p className="font-bold text-gray-900">{formatCurrency(Number(factura.montoTotal))}</p>
             </div>
-          )}
+            <div>
+              <p className="text-gray-500 text-xs">A cobrar</p>
+              <p className="font-bold text-gray-900">{formatCurrency(factura.montoACobrar)}</p>
+              {factura.ivaArcaAdicional > 0 && (
+                <p className="text-[11px] text-amber-700">+ IVA ARCA {formatCurrency(factura.ivaArcaAdicional)}</p>
+              )}
+              {factura.totalCreditos > 0 && (
+                <p className="text-[11px] text-blue-600">− NC {formatCurrency(factura.totalCreditos)}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">Cobrado</p>
+              <p className="font-bold text-green-600">{formatCurrency(factura.totalPagado)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">Saldo pendiente</p>
+              <p className="font-bold text-red-600">{formatCurrency(factura.saldoPendiente)}</p>
+            </div>
+          </div>
           {factura.pagos.length > 0 && (
             <div className="mt-4 space-y-2">
               <p className="text-xs font-medium text-gray-500">Historial de cobros</p>
@@ -360,6 +407,118 @@ export default function DetalleFacturaPage({ params }: { params: Promise<{ id: s
           )}
         </CardContent>
       </Card>
+
+      {/* Notas de crédito */}
+      {factura.notasCredito?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2 text-gray-600">
+              <FileMinus2 className="h-4 w-4" /> Notas de crédito
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {factura.notasCredito.map((nc) => (
+              <div key={nc.id} className="flex items-center justify-between text-sm bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
+                <div>
+                  <p className="font-mono font-semibold text-gray-900">NC-{String(nc.numero).padStart(5, "0")}</p>
+                  <p className="text-xs text-gray-500">
+                    {formatDate(nc.fecha)}
+                    {nc.motivo ? ` · ${nc.motivo}` : ""}
+                    {nc.comprobanteArca ? ` · ARCA ${nc.comprobanteArca}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-blue-700">{formatCurrency(nc.monto)}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`/dashboard/facturacion/${factura.id}/nota-credito/${nc.id}`, "_blank")}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modal NC */}
+      <Dialog open={ncOpen} onOpenChange={setNcOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {ncTotal ? "Anular con nota de crédito" : "Nota de crédito parcial"} — FAC-{String(factura.numero).padStart(5, "0")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-sm">
+              <p className="text-blue-800">
+                Monto vigente a acreditar: <strong>{formatCurrency(factura.montoACobrar)}</strong>
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                {ncTotal
+                  ? "Se emite una NC por el total restante y la factura queda anulada."
+                  : "Podés acreditar solo una parte; el saldo pendiente baja."}
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setNcTotal(true); setNcMonto(String(factura.montoACobrar)); setNcMotivo("Anulación total"); }}
+                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium ${ncTotal ? "border-red-600 bg-red-50 text-red-700" : "border-gray-200 text-gray-600"}`}
+              >
+                Total
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNcTotal(false); setNcMonto(""); if (ncMotivo === "Anulación total") setNcMotivo(""); }}
+                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium ${!ncTotal ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}
+              >
+                Parcial
+              </button>
+            </div>
+
+            {!ncTotal && (
+              <div className="space-y-1">
+                <Label>Monto a acreditar *</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={factura.montoACobrar}
+                  value={ncMonto}
+                  onChange={(e) => setNcMonto(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label>Motivo</Label>
+              <Input value={ncMotivo} onChange={(e) => setNcMotivo(e.target.value)} placeholder="Ej: devolución, error de carga..." />
+            </div>
+
+            {factura.facturadoArca && (
+              <div className="space-y-1">
+                <Label>Comprobante NC en ARCA (opcional)</Label>
+                <Input value={ncComprobante} onChange={(e) => setNcComprobante(e.target.value)} placeholder="Ej: 0001-00009999" />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setNcOpen(false)}>Cancelar</Button>
+              <Button
+                onClick={emitirNotaCredito}
+                disabled={updating || (!ncTotal && (!(parseFloat(ncMonto) > 0) || parseFloat(ncMonto) > factura.montoACobrar + 0.005))}
+                className={ncTotal ? "bg-red-600 hover:bg-red-700" : undefined}
+              >
+                {updating ? "Emitiendo..." : ncTotal ? "Emitir NC y anular" : "Emitir NC parcial"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

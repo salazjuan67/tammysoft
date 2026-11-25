@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { importeArca, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
+import { importeArca, ivaArcaAdicional, montoACobrar, recalcularEstadoFactura, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -24,18 +24,36 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         select: { id: true, monto: true, tipoPago: true, fechaPago: true, observaciones: true },
         orderBy: { fechaPago: "asc" },
       },
+      notasCredito: {
+        select: {
+          id: true,
+          numero: true,
+          monto: true,
+          motivo: true,
+          fecha: true,
+          comprobanteArca: true,
+        },
+        orderBy: { fecha: "asc" },
+      },
     },
   });
 
   if (!factura) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
 
-  const { totalPagado, saldo } = saldoFactura(factura.montoTotal, factura.pagos);
+  const aCobrar = montoACobrar(factura);
+  const ivaArca = ivaArcaAdicional(factura);
+  const { totalPagado, saldo } = saldoFactura(aCobrar, factura.pagos);
+  const totalCreditos = factura.notasCredito.reduce((s, n) => s + Number(n.monto), 0);
 
   return NextResponse.json({
     data: {
       ...factura,
       pagos: factura.pagos.map((p) => ({ ...p, monto: Number(p.monto) })),
+      notasCredito: factura.notasCredito.map((n) => ({ ...n, monto: Number(n.monto) })),
       totalPagado,
+      totalCreditos,
+      ivaArcaAdicional: ivaArca,
+      montoACobrar: aCobrar,
       saldoPendiente: factura.estado === "ANULADA" ? 0 : saldo,
       porcentajeArca: Number(factura.porcentajeArca),
       tasaIvaArca: Number(factura.tasaIvaArca),

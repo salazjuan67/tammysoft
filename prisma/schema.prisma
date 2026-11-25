@@ -82,6 +82,7 @@ model Usuario {
   pedidosEditados     Pedido[]             @relation("pedidoEditor")
   pagosRegistrados    Pago[]
   pagosProveedor      PagoProveedor[]
+  notasCredito        NotaCredito[]
   clienteAsociado     Cliente?             @relation(fields: [clienteId], references: [id])
   clienteId           String?              @unique
   resetTokens         PasswordResetToken[]
@@ -249,10 +250,31 @@ model Factura {
   pedido      Pedido        @relation(fields: [pedidoId], references: [id])
   cliente     Cliente       @relation(fields: [clienteId], references: [id])
   pagos       Pago[]
+  notasCredito NotaCredito[]
 
   @@index([clienteId, estado])
   @@index([fecha])
   @@map("facturas")
+}
+
+// Nota de crédito parcial o total sobre una factura. Reduce lo que debe el cliente.
+model NotaCredito {
+  id              String   @id @default(cuid())
+  facturaId       String
+  numero          Int      @unique @default(autoincrement())
+  monto           Decimal  @db.Decimal(10, 2)
+  motivo          String?
+  fecha           DateTime @default(now())
+  usuarioId       String
+  // Si también se carga la NC en ARCA, se guarda el número de comprobante fiscal.
+  comprobanteArca String?
+  createdAt       DateTime @default(now())
+
+  factura Factura @relation(fields: [facturaId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([facturaId])
+  @@map("notas_credito")
 }
 
 model Pago {

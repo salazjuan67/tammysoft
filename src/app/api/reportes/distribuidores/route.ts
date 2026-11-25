@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { saldoFactura } from "@/lib/cuentaCorriente";
+import { ivaArcaAdicional, montoACobrar, saldoFactura } from "@/lib/cuentaCorriente";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       factura: {
         include: {
           pagos: { select: { monto: true, tipoPago: true } },
+          notasCredito: { select: { monto: true } },
         },
       },
     },
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
 
     const monto = Number(pedido.montoTotal);
     const factura = pedido.factura?.estado === "ANULADA" ? null : pedido.factura;
-    const ivaFactura = factura ? Number(factura.montoIva) : 0;
+    const ivaFactura = factura ? Number(factura.montoIva) + ivaArcaAdicional(factura) : 0;
     const efectivo = factura
       ? factura.pagos.filter((p) => p.tipoPago === "EFECTIVO").reduce((s, p) => s + Number(p.monto), 0)
       : 0;
@@ -100,7 +101,7 @@ export async function GET(req: NextRequest) {
       : 0;
     // Un pedido entregado sin factura vigente sigue debiéndose completo; una anulada no genera deuda.
     const saldo = factura
-      ? saldoFactura(factura.montoTotal, factura.pagos).saldo
+      ? saldoFactura(montoACobrar(factura), factura.pagos).saldo
       : pedido.factura ? 0 : monto;
 
     const c = distribuidores[distId].clientes[clienteNombre];
