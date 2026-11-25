@@ -10,9 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, CreditCard, Building2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Building2, Package } from "lucide-react";
 
 interface Pago { id: string; monto: number; tipoPago: string; fechaPago: string; referencia: string | null; observaciones: string | null; usuario: { nombre: string } }
+interface ItemFactura {
+  id: string;
+  descripcion: string;
+  cantidad: number;
+  unidad: string;
+  precioUnitario: number;
+  subtotal: number;
+  materiaPrima: { id: string; nombre: string; unidad: string; stockActual: number } | null;
+}
 interface FacturaDetalle {
   id: string; numeroFactura: string; concepto: string;
   proveedor: { id: string; nombre: string; email: string | null; telefono: string | null };
@@ -21,7 +30,9 @@ interface FacturaDetalle {
   estado: string; estadoMostrar: string;
   saldoPendiente: number; totalPagado: number;
   observaciones: string | null;
+  tieneImagen?: boolean;
   pagos: Pago[];
+  items?: ItemFactura[];
 }
 
 const ESTADO_BADGE: Record<string, "destructive" | "warning" | "success" | "secondary"> = {
@@ -128,6 +139,56 @@ export default function DetalleFacturaProveedorPage({ params }: { params: Promis
           </table>
         </CardContent>
       </Card>
+
+      {factura.tieneImagen && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Foto de la factura</CardTitle></CardHeader>
+          <CardContent>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/proveedores/facturas/${factura.id}/imagen`}
+              alt="Factura"
+              className="max-h-80 rounded-lg border object-contain bg-white"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {(factura.items?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="h-4 w-4" /> Ítems / stock
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descripción</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Cant.</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Ud.</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Subtotal</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Stock actual</th>
+                </tr>
+              </thead>
+              <tbody>
+                {factura.items!.map((i) => (
+                  <tr key={i.id} className="border-b border-gray-50">
+                    <td className="px-4 py-3">{i.descripcion}</td>
+                    <td className="px-4 py-3 text-right font-medium">{i.cantidad}</td>
+                    <td className="px-4 py-3">{i.unidad}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(i.subtotal)}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">
+                      {i.materiaPrima ? `${i.materiaPrima.stockActual} ${i.materiaPrima.unidad}` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Historial de pagos */}
       <Card>
