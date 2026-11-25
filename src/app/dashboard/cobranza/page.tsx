@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { DollarSign, CreditCard, Wallet, TrendingDown, Plus, Search, ChevronDown, ChevronUp, Receipt } from "lucide-react";
+import { DollarSign, CreditCard, Wallet, TrendingDown, Plus, Search, ChevronDown, ChevronUp, Receipt, Pencil, Trash2 } from "lucide-react";
 import ResumenDineroDisponible from "@/components/dashboard/ResumenDineroDisponible";
 
 interface ResumenFinanciero {
@@ -78,6 +78,23 @@ export default function CobranzaPage() {
   const [tasaIva, setTasaIva] = useState<0.21 | 0.105>(0.21);
   const [observaciones, setObservaciones] = useState("");
   const [loadingPago, setLoadingPago] = useState(false);
+
+  // Modal editar cobro
+  const [editPago, setEditPago] = useState<{
+    id: string;
+    facturaId: string;
+    facturaNumero: number;
+    monto: number;
+    tipoPago: "EFECTIVO" | "TRANSFERENCIA";
+    fechaPago: string;
+    observaciones: string | null;
+    montoMaximo: number;
+  } | null>(null);
+  const [editMonto, setEditMonto] = useState("");
+  const [editTipoPago, setEditTipoPago] = useState<"EFECTIVO" | "TRANSFERENCIA">("TRANSFERENCIA");
+  const [editFecha, setEditFecha] = useState("");
+  const [editObs, setEditObs] = useState("");
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   const [tabActivo, setTabActivo] = useState<"cobranza" | "dinero">("cobranza");
 
@@ -184,6 +201,85 @@ export default function CobranzaPage() {
       ? Math.max(0, pagoModal.montoNeto * (1 + tasa) - pagoModal.totalPagado)
       : pagoModal.saldoPendiente;
     setMonto(nuevoSaldo.toFixed(2));
+  }
+
+  function fechaInput(iso: string) {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function abrirEditarPago(factura: FacturaDetalle, pago: PagoDetalle) {
+    const tipo = pago.tipoPago === "EFECTIVO" ? "EFECTIVO" : "TRANSFERENCIA";
+    // Máximo = saldo actual + el monto de este cobro (lo que "libera" al editarlo)
+    const montoMaximo = Math.round((factura.saldoPendiente + pago.monto) * 100) / 100;
+    setEditPago({
+      id: pago.id,
+      facturaId: factura.id,
+      facturaNumero: factura.numero,
+      monto: pago.monto,
+      tipoPago: tipo,
+      fechaPago: pago.fechaPago,
+      observaciones: pago.observaciones,
+      montoMaximo,
+    });
+    setEditMonto(String(pago.monto));
+    setEditTipoPago(tipo);
+    setEditFecha(fechaInput(pago.fechaPago));
+    setEditObs(pago.observaciones ?? "");
+  }
+
+  async function guardarEdicionPago() {
+    if (!editPago || !clienteDetalle) return;
+    const nuevoMonto = parseFloat(editMonto) || 0;
+    if (nuevoMonto <= 0) {
+      toast({ title: "Ingresá un monto válido", variant: "destructive" });
+      return;
+    }
+    if (nuevoMonto > editPago.montoMaximo + 0.005) {
+      toast({ title: "El monto supera el saldo de la factura", variant: "destructive" });
+      return;
+    }
+    setLoadingEdit(true);
+    try {
+      const res = await fetch(`/api/cobranza/${editPago.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          monto: nuevoMonto,
+          tipoPago: editTipoPago,
+          fechaPago: editFecha || undefined,
+          observaciones: editObs,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast({ title: "No se pudo editar el cobro", description: typeof json.error === "string" ? json.error : undefined, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Cobro actualizado" });
+      setEditPago(null);
+      await abrirDetalle(clienteDetalle);
+      cargarDatos();
+    } finally {
+      setLoadingEdit(false);
+    }
+  }
+
+  async function borrarPago(pagoId: string) {
+    if (!clienteDetalle) return;
+    if (!confirm("¿Eliminar este cobro? El saldo de la factura se va a recalcular.")) return;
+    const res = await fetch(`/api/cobranza/${pagoId}`, { method: "DELETE" });
+    const json = await res.json();
+    if (!res.ok) {
+      toast({ title: "No se pudo eliminar", description: typeof json.error === "string" ? json.error : undefined, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Cobro eliminado" });
+    await abrirDetalle(clienteDetalle);
+    cargarDatos();
   }
 
   async function registrarCobro() {
@@ -487,15 +583,33 @@ export default function CobranzaPage() {
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-gray-500 mb-2">Historial de cobros:</p>
                           {factura.pagos.map((pago) => (
-                            <div key={pago.id} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 border border-gray-100">
-                              <div className="flex items-center gap-2">
+                            <div key={pago.id} className="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2 border border-gray-100">
+                              <div className="flex items-center gap-2 min-w-0">
                                 {pago.tipoPago === "EFECTIVO"
-                                  ? <Wallet className="h-3.5 w-3.5 text-green-600" />
-                                  : <CreditCard className="h-3.5 w-3.5 text-blue-600" />}
+                                  ? <Wallet className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                  : <CreditCard className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
                                 <span className="text-gray-600">{formatDate(pago.fechaPago)}</span>
-                                {pago.observaciones && <span className="text-gray-400 text-xs">· {pago.observaciones}</span>}
+                                {pago.observaciones && <span className="text-gray-400 text-xs truncate">· {pago.observaciones}</span>}
                               </div>
-                              <span className="font-semibold text-green-700">{formatCurrency(pago.monto)}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className="font-semibold text-green-700 mr-1">{formatCurrency(pago.monto)}</span>
+                                <button
+                                  type="button"
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-pink-600 hover:bg-pink-50"
+                                  title="Editar cobro"
+                                  onClick={() => abrirEditarPago(factura, pago)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                  title="Eliminar cobro"
+                                  onClick={() => borrarPago(pago.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -624,6 +738,87 @@ export default function CobranzaPage() {
                 <Button variant="outline" onClick={() => setPagoModal(null)}>Cancelar</Button>
                 <Button onClick={registrarCobro} disabled={loadingPago || montoCobro <= 0 || superaSaldo}>
                   {loadingPago ? "Guardando..." : `Registrar ${formatCurrency(montoCobro)}`}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Editar cobro ────────────────────────────────── */}
+      <Dialog open={!!editPago} onOpenChange={(o) => { if (!o) setEditPago(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar cobro — Factura #{editPago?.facturaNumero}</DialogTitle>
+          </DialogHeader>
+
+          {editPago && (
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-sm">
+                <span className="text-amber-800 font-medium">Máximo: {formatCurrency(editPago.montoMaximo)}</span>
+                <span className="text-gray-400 text-xs ml-2">(saldo + este cobro)</span>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Monto *</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={editPago.montoMaximo}
+                  value={editMonto}
+                  onChange={(e) => setEditMonto(e.target.value)}
+                />
+                {(parseFloat(editMonto) || 0) > editPago.montoMaximo + 0.005 && (
+                  <p className="text-xs text-red-600">No puede superar {formatCurrency(editPago.montoMaximo)}</p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label>Fecha del cobro</Label>
+                <Input type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Método de pago</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditTipoPago("EFECTIVO")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${editTipoPago === "EFECTIVO" ? "border-pink-600 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-600"}`}
+                  >
+                    <Wallet className="h-4 w-4" /> Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditTipoPago("TRANSFERENCIA")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${editTipoPago === "TRANSFERENCIA" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}
+                  >
+                    <CreditCard className="h-4 w-4" /> Transferencia
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Observaciones</Label>
+                <Input
+                  placeholder="Ej: corregido monto..."
+                  value={editObs}
+                  onChange={(e) => setEditObs(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-1">
+                <Button variant="outline" onClick={() => setEditPago(null)}>Cancelar</Button>
+                <Button
+                  onClick={guardarEdicionPago}
+                  disabled={
+                    loadingEdit
+                    || (parseFloat(editMonto) || 0) <= 0
+                    || (parseFloat(editMonto) || 0) > editPago.montoMaximo + 0.005
+                  }
+                >
+                  {loadingEdit ? "Guardando..." : "Guardar cambios"}
                 </Button>
               </div>
             </div>

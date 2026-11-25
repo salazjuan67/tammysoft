@@ -62,23 +62,27 @@ export async function GET(req: NextRequest) {
       orderBy: { fecha: "asc" },
     });
 
-    const data = facturasConSaldo(facturas).map(({ factura: f, totalPagado, saldo }) => ({
-      id: f.id,
-      numero: f.numero,
-      fecha: f.fecha,
-      montoTotal: Number(f.montoTotal),
-      montoNeto: Number(f.montoNeto),
-      montoIva: Number(f.montoIva),
-      tasaIva: Number(f.tasaIva),
-      totalPagado,
-      saldoPendiente: saldo,
-      estado: f.estado,
-      pedido: f.pedido,
-      pagos: f.pagos.map((p) => ({
-        ...p,
-        monto: Number(p.monto),
-      })),
-    }));
+    // Todas las facturas vigentes (también las saldadas), para poder editar cobros ya hechos.
+    const data = facturas.map((f) => {
+      const { totalPagado, saldo } = saldoFactura(f.montoTotal, f.pagos);
+      return {
+        id: f.id,
+        numero: f.numero,
+        fecha: f.fecha,
+        montoTotal: Number(f.montoTotal),
+        montoNeto: Number(f.montoNeto),
+        montoIva: Number(f.montoIva),
+        tasaIva: Number(f.tasaIva),
+        totalPagado,
+        saldoPendiente: saldo,
+        estado: f.estado,
+        pedido: f.pedido,
+        pagos: f.pagos.map((p) => ({
+          ...p,
+          monto: Number(p.monto),
+        })),
+      };
+    });
 
     return NextResponse.json({ data });
   }

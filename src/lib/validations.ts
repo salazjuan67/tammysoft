@@ -85,6 +85,15 @@ export const pagoSchema = z.object({
 
 export type PagoInput = z.infer<typeof pagoSchema>;
 
+export const pagoUpdateSchema = z.object({
+  monto: z.coerce.number().positive("El monto debe ser mayor a 0").optional(),
+  tipoPago: z.enum(["EFECTIVO", "TRANSFERENCIA"]).optional(),
+  fechaPago: z.coerce.date().optional(),
+  observaciones: z.string().optional(),
+});
+
+export type PagoUpdateInput = z.infer<typeof pagoUpdateSchema>;
+
 // ─── Proveedor ────────────────────────────────────────────────────────────────
 export const proveedorSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
