@@ -17,6 +17,7 @@ import {
   FileText,
   Truck,
   BadgePercent,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,12 @@ const navItems: NavItem[] = [
     href: "/dashboard/admin/proveedores/facturas",
     label: "Fact. Proveedores",
     icon: <Truck className="h-5 w-5" />,
+    roles: ["ADMIN", "OPERARIO"],
+  },
+  {
+    href: "/dashboard/admin/inventario",
+    label: "Inventario",
+    icon: <Package className="h-5 w-5" />,
     roles: ["ADMIN", "OPERARIO"],
   },
   {

@@ -29,11 +29,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         include: { usuario: { select: { id: true, nombre: true } } },
         orderBy: { fechaPago: "desc" },
       },
+      items: {
+        include: { materiaPrima: { select: { id: true, nombre: true, unidad: true, stockActual: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
   if (!factura) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
+  const { imagenData: _img, ...sinImagen } = factura;
   const totalPagado = factura.pagos.reduce((s, p) => s + Number(p.monto), 0);
   const saldoPendiente = Math.max(0, Number(factura.montoTotal) - totalPagado);
   const hoy = new Date();
@@ -41,11 +46,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     data: {
-      ...serialize(factura as unknown as Record<string, unknown>),
+      ...serialize(sinImagen as unknown as Record<string, unknown>),
+      tieneImagen: !!factura.imagenMime,
       saldoPendiente,
       totalPagado,
       estadoMostrar: vencida ? "VENCIDA" : factura.estado,
       pagos: factura.pagos.map((p) => ({ ...p, monto: Number(p.monto) })),
+      items: factura.items.map((i) => ({
+        ...i,
+        cantidad: Number(i.cantidad),
+        precioUnitario: Number(i.precioUnitario),
+        subtotal: Number(i.subtotal),
+        materiaPrima: i.materiaPrima
+          ? { ...i.materiaPrima, stockActual: Number(i.materiaPrima.stockActual) }
+          : null,
+      })),
     },
   });
 }

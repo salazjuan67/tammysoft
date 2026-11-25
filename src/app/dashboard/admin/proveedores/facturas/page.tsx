@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { Plus, FileText, ChevronLeft, ChevronRight, Pencil, Trash2, CreditCard } from "lucide-react";
+import { Plus, FileText, ChevronLeft, ChevronRight, Pencil, Trash2, CreditCard, Camera, Sparkles, Package } from "lucide-react";
+import Link from "next/link";
 
 interface FacturaProveedor {
   id: string;
@@ -27,6 +28,16 @@ interface FacturaProveedor {
   estadoMostrar: string;
   saldoPendiente: number;
   observaciones: string | null;
+  tieneImagen?: boolean;
+  cantidadItems?: number;
+}
+
+interface ItemForm {
+  descripcion: string;
+  cantidad: string;
+  unidad: string;
+  precioUnitario: string;
+  subtotal: string;
 }
 
 interface Proveedor { id: string; nombre: string }
@@ -73,6 +84,11 @@ export default function FacturasProveedoresPage() {
   const [editando, setEditando] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [items, setItems] = useState<ItemForm[]>([]);
+  const [actualizarStock, setActualizarStock] = useState(true);
+  const [leyendoOcr, setLeyendoOcr] = useState(false);
 
   // Modal pago
   const [pagoFactura, setPagoFactura] = useState<FacturaProveedor | null>(null);
@@ -112,7 +128,21 @@ export default function FacturasProveedoresPage() {
     setForm(f => ({ ...f, tasaIva: tasa, montoIva: iva.toFixed(2), montoTotal: (n + iva).toFixed(2) }));
   }
 
-  function abrirNueva() { setForm(emptyForm); setEditando(null); setShowModal(true); }
+  function limpiarImagen() {
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview);
+    setImagenFile(null);
+    setImagenPreview(null);
+  }
+
+  function abrirNueva() {
+    setForm(emptyForm);
+    setEditando(null);
+    setItems([]);
+    setActualizarStock(true);
+    limpiarImagen();
+    setShowModal(true);
+  }
+
   function abrirEditar(f: FacturaProveedor) {
     const tasa = f.montoNeto > 0 ? (f.montoIva / f.montoNeto).toFixed(3) : "0";
     setForm({
@@ -123,7 +153,87 @@ export default function FacturasProveedoresPage() {
       montoIva: String(f.montoIva), montoTotal: String(f.montoTotal),
       concepto: f.concepto, observaciones: f.observaciones ?? "",
     } as typeof emptyForm);
+    setItems([]);
+    limpiarImagen();
     setEditando(f.id); setShowModal(true);
+  }
+
+  function onPickImagen(file: File | null) {
+    if (!file) return;
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview);
+    setImagenFile(file);
+    setImagenPreview(URL.createObjectURL(file));
+  }
+
+  async function leerConIA() {
+    if (!imagenFile) {
+      toast({ title: "Primero subí la foto de la factura", variant: "destructive" });
+      return;
+    }
+    setLeyendoOcr(true);
+    try {
+      const fd = new FormData();
+      fd.append("imagen", imagenFile);
+      const res = await fetch("/api/proveedores/facturas/ocr", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) {
+        toast({ title: "No se pudo leer la factura", description: json.error, variant: "destructive" });
+        return;
+      }
+      const d = json.data;
+      const neto = Number(d.montoNeto) || 0;
+      const iva = Number(d.montoIva) || 0;
+      const total = Number(d.montoTotal) || neto + iva;
+      const tasa = neto > 0 ? String(Math.round((iva / neto) * 1000) / 1000) : form.tasaIva;
+      setForm((f) => ({
+        ...f,
+        proveedorId: d.proveedorId || f.proveedorId,
+        numeroFactura: d.numeroFactura || f.numeroFactura,
+        fechaEmision: d.fechaEmision || f.fechaEmision,
+        fechaVencimiento: d.fechaVencimiento || f.fechaVencimiento,
+        montoNeto: neto ? String(neto) : f.montoNeto,
+        montoIva: String(iva),
+        montoTotal: total ? String(total) : f.montoTotal,
+        tasaIva: tasa,
+        concepto: d.concepto && CONCEPTOS.includes(d.concepto) ? d.concepto : (d.concepto || f.concepto || "Insumos"),
+      }));
+      setItems(
+        (d.items ?? []).map((i: { descripcion: string; cantidad: number; unidad: string; precioUnitario: number; subtotal: number }) => ({
+          descripcion: i.descripcion,
+          cantidad: String(i.cantidad),
+          unidad: i.unidad || "UN",
+          precioUnitario: String(i.precioUnitario ?? 0),
+          subtotal: String(i.subtotal ?? 0),
+        }))
+      );
+      toast({
+        title: "Factura leída",
+        description: d.proveedorId
+          ? `${(d.items ?? []).length} ítem(s) detectados`
+          : `Se leyeron ${(d.items ?? []).length} ítem(s). Seleccioná el proveedor si no coincidió.`,
+      });
+    } finally {
+      setLeyendoOcr(false);
+    }
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, { descripcion: "", cantidad: "1", unidad: "UN", precioUnitario: "0", subtotal: "0" }]);
+  }
+
+  function updateItem(idx: number, patch: Partial<ItemForm>) {
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const next = { ...it, ...patch };
+        const cant = parseFloat(next.cantidad) || 0;
+        const pu = parseFloat(next.precioUnitario) || 0;
+        if (patch.cantidad !== undefined || patch.precioUnitario !== undefined) {
+          next.subtotal = (Math.round(cant * pu * 100) / 100).toFixed(2);
+        }
+        return next;
+      })
+    );
   }
 
   async function guardar() {
@@ -138,17 +248,49 @@ export default function FacturasProveedoresPage() {
       montoNeto: parseFloat(form.montoNeto), montoIva: parseFloat(form.montoIva) || 0,
       montoTotal: parseFloat(form.montoTotal), concepto: form.concepto,
       observaciones: form.observaciones || null,
+      actualizarStock: !editando && actualizarStock,
+      items: !editando
+        ? items
+            .filter((i) => i.descripcion.trim() && parseFloat(i.cantidad) > 0)
+            .map((i) => ({
+              descripcion: i.descripcion.trim(),
+              cantidad: parseFloat(i.cantidad),
+              unidad: i.unidad || "UN",
+              precioUnitario: parseFloat(i.precioUnitario) || 0,
+              subtotal: parseFloat(i.subtotal) || 0,
+            }))
+        : undefined,
     };
 
-    const res = await fetch(editando ? `/api/proveedores/facturas/${editando}` : "/api/proveedores/facturas", {
-      method: editando ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let res: Response;
+    if (editando) {
+      res = await fetch(`/api/proveedores/facturas/${editando}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else if (imagenFile) {
+      const fd = new FormData();
+      fd.append("payload", JSON.stringify(payload));
+      fd.append("imagen", imagenFile);
+      res = await fetch("/api/proveedores/facturas", { method: "POST", body: fd });
+    } else {
+      res = await fetch("/api/proveedores/facturas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
     const json = await res.json();
     setSaving(false);
     if (res.ok) {
-      toast({ title: editando ? "Factura actualizada" : "Factura creada" });
+      toast({
+        title: editando ? "Factura actualizada" : "Factura creada",
+        description: !editando && actualizarStock && items.length
+          ? `Stock actualizado con ${items.filter((i) => i.descripcion.trim()).length} ítem(s)`
+          : undefined,
+      });
       setShowModal(false); fetchFacturas();
     } else {
       toast({ title: "Error", description: typeof json.error === "string" ? json.error : "Error al guardar", variant: "destructive" });
@@ -187,9 +329,16 @@ export default function FacturasProveedoresPage() {
           <h1 className="text-2xl font-bold text-gray-900">Facturas de Proveedores</h1>
           <p className="text-gray-500 text-sm mt-1">{total} factura{total !== 1 ? "s" : ""}</p>
         </div>
-        <Button onClick={abrirNueva}>
-          <Plus className="h-4 w-4 mr-1" /> Nueva Factura
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/admin/inventario">
+              <Package className="h-4 w-4 mr-1" /> Inventario
+            </Link>
+          </Button>
+          <Button onClick={abrirNueva}>
+            <Plus className="h-4 w-4 mr-1" /> Nueva Factura
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -316,12 +465,39 @@ export default function FacturasProveedoresPage() {
       </Card>
 
       {/* Modal Nueva / Editar Factura */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={showModal} onOpenChange={(o) => { if (!o) { setShowModal(false); limpiarImagen(); } else setShowModal(true); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editando ? "Editar Factura" : "Nueva Factura de Proveedor"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {!editando && (
+              <div className="rounded-xl border border-dashed border-pink-300 bg-pink-50/50 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-pink-600" /> Foto de la factura
+                    </p>
+                    <p className="text-xs text-gray-500">Subí una foto y Gemini completa los datos e ítems.</p>
+                  </div>
+                  <Button type="button" size="sm" onClick={leerConIA} disabled={!imagenFile || leyendoOcr}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {leyendoOcr ? "Leyendo..." : "Leer con IA"}
+                  </Button>
+                </div>
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  capture="environment"
+                  onChange={(e) => onPickImagen(e.target.files?.[0] ?? null)}
+                />
+                {imagenPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagenPreview} alt="Vista previa factura" className="max-h-40 rounded-lg border object-contain bg-white" />
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label>Proveedor *</Label>
@@ -375,9 +551,63 @@ export default function FacturasProveedoresPage() {
                 <Input placeholder="Notas..." value={form.observaciones} onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} />
               </div>
             </div>
+
+            {!editando && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Package className="h-4 w-4" /> Ítems / materia prima
+                  </Label>
+                  <Button type="button" size="sm" variant="outline" onClick={addItem}>
+                    <Plus className="h-3.5 w-3.5" /> Agregar ítem
+                  </Button>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={actualizarStock}
+                    onChange={(e) => setActualizarStock(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  Sumar estos ítems al stock de inventario
+                </label>
+                {items.length === 0 ? (
+                  <p className="text-xs text-gray-400">Sin ítems. Podés leerlos con IA o cargarlos a mano.</p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto">
+                    {items.map((it, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-1.5 items-end border rounded-lg p-2 bg-gray-50">
+                        <div className="col-span-12 sm:col-span-5">
+                          <Label className="text-[10px]">Descripción</Label>
+                          <Input className="h-8 text-xs" value={it.descripcion} onChange={(e) => updateItem(idx, { descripcion: e.target.value })} />
+                        </div>
+                        <div className="col-span-3 sm:col-span-2">
+                          <Label className="text-[10px]">Cant.</Label>
+                          <Input className="h-8 text-xs" type="number" value={it.cantidad} onChange={(e) => updateItem(idx, { cantidad: e.target.value })} />
+                        </div>
+                        <div className="col-span-3 sm:col-span-1">
+                          <Label className="text-[10px]">Ud.</Label>
+                          <Input className="h-8 text-xs" value={it.unidad} onChange={(e) => updateItem(idx, { unidad: e.target.value })} />
+                        </div>
+                        <div className="col-span-4 sm:col-span-2">
+                          <Label className="text-[10px]">P. unit.</Label>
+                          <Input className="h-8 text-xs" type="number" value={it.precioUnitario} onChange={(e) => updateItem(idx, { precioUnitario: e.target.value })} />
+                        </div>
+                        <div className="col-span-2">
+                          <Button type="button" size="sm" variant="outline" className="h-8 w-full text-red-600" onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>
-              <Button onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
+              <Button variant="outline" onClick={() => { setShowModal(false); limpiarImagen(); }}>Cancelar</Button>
+              <Button onClick={guardar} disabled={saving || leyendoOcr}>{saving ? "Guardando..." : "Guardar"}</Button>
             </div>
           </div>
         </DialogContent>

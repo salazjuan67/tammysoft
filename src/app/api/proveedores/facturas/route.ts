@@ -2,18 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { entradaStockCompra, resolverMateriaPrima } from "@/lib/stock";
+
+const itemSchema = z.object({
+  descripcion: z.string().min(1),
+  cantidad: z.coerce.number().positive(),
+  unidad: z.string().min(1).default("UN"),
+  precioUnitario: z.coerce.number().min(0).default(0),
+  subtotal: z.coerce.number().min(0).default(0),
+});
 
 const createSchema = z.object({
   proveedorId: z.string().min(1),
   numeroFactura: z.string().min(1),
   fechaEmision: z.string().refine((v) => !isNaN(Date.parse(v)), "Fecha inválida"),
   fechaVencimiento: z.string().optional().nullable(),
-  montoNeto: z.number().min(0),
-  montoIva: z.number().min(0),
-  montoTotal: z.number().min(0),
+  montoNeto: z.coerce.number().min(0),
+  montoIva: z.coerce.number().min(0),
+  montoTotal: z.coerce.number().min(0),
   concepto: z.string().min(1),
   observaciones: z.string().optional().nullable(),
+  items: z.array(itemSchema).optional().default([]),
+  actualizarStock: z.coerce.boolean().optional().default(true),
 });
+
+async function parseCreateBody(req: NextRequest) {
+  const contentType = req.headers.get("content-type") || "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    const payloadRaw = form.get("payload");
+    if (typeof payloadRaw !== "string") throw new Error("Falta payload");
+    const payload = JSON.parse(payloadRaw);
+    const imagen = form.get("imagen");
+    return { payload, imagen: imagen instanceof File ? imagen : null };
+  }
+  const payload = await req.json();
+  return { payload, imagen: null as File | null };
+}
 
 // ─── GET /api/proveedores/facturas ────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -44,9 +69,24 @@ export async function GET(req: NextRequest) {
   const [facturas, total] = await Promise.all([
     db.facturaProveedor.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        numeroFactura: true,
+        proveedorId: true,
+        fechaEmision: true,
+        fechaVencimiento: true,
+        montoNeto: true,
+        montoIva: true,
+        montoTotal: true,
+        concepto: true,
+        estado: true,
+        observaciones: true,
+        imagenMime: true,
+        createdAt: true,
+        updatedAt: true,
         proveedor: { select: { id: true, nombre: true } },
         pagos: { select: { monto: true } },
+        _count: { select: { items: true } },
       },
       orderBy: { fechaEmision: "desc" },
       skip: (page - 1) * pageSize,
@@ -55,9 +95,8 @@ export async function GET(req: NextRequest) {
     db.facturaProveedor.count({ where }),
   ]);
 
-  // Mark overdue invoices dynamically and calculate saldo
   const hoy = new Date();
-  const data = facturas.map(({ pagos, ...f }) => {
+  const data = facturas.map(({ pagos, _count, imagenMime, ...f }) => {
     const totalPagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
     const saldoPendiente = Math.max(0, Number(f.montoTotal) - totalPagado);
     const vencida =
@@ -66,6 +105,9 @@ export async function GET(req: NextRequest) {
       new Date(f.fechaVencimiento) < hoy;
     return {
       ...f,
+      imagenMime,
+      tieneImagen: !!imagenMime,
+      cantidadItems: _count.items,
       montoNeto: Number(f.montoNeto),
       montoIva: Number(f.montoIva),
       montoTotal: Number(f.montoTotal),
@@ -85,26 +127,114 @@ export async function POST(req: NextRequest) {
   if (!["ADMIN", "OPERARIO"].includes(userRolPost))
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
-  const body = await req.json();
-  const parsed = createSchema.safeParse(body);
+  let parsedBody: { payload: unknown; imagen: File | null };
+  try {
+    parsedBody = await parseCreateBody(req);
+  } catch {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  const parsed = createSchema.safeParse(parsedBody.payload);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { proveedorId, numeroFactura, fechaEmision, fechaVencimiento, montoNeto, montoIva, montoTotal, concepto, observaciones } = parsed.data;
+  const {
+    proveedorId,
+    numeroFactura,
+    fechaEmision,
+    fechaVencimiento,
+    montoNeto,
+    montoIva,
+    montoTotal,
+    concepto,
+    observaciones,
+    items,
+    actualizarStock,
+  } = parsed.data;
 
-  const factura = await db.facturaProveedor.create({
-    data: {
-      proveedorId,
-      numeroFactura,
-      fechaEmision: new Date(fechaEmision + "T00:00:00"),
-      fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento + "T00:00:00") : null,
-      montoNeto,
-      montoIva,
-      montoTotal,
-      concepto,
-      observaciones,
-    },
-    include: { proveedor: { select: { id: true, nombre: true } } },
+  let imagenMime: string | null = null;
+  let imagenData: Uint8Array | null = null;
+  if (parsedBody.imagen) {
+    if (parsedBody.imagen.size > 8 * 1024 * 1024) {
+      return NextResponse.json({ error: "La imagen no puede superar 8 MB" }, { status: 400 });
+    }
+    imagenMime = parsedBody.imagen.type || "image/jpeg";
+    imagenData = new Uint8Array(await parsedBody.imagen.arrayBuffer());
+  }
+
+  const factura = await db.$transaction(async (tx) => {
+    const creada = await tx.facturaProveedor.create({
+      data: {
+        proveedorId,
+        numeroFactura,
+        fechaEmision: new Date(fechaEmision + "T00:00:00"),
+        fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento + "T00:00:00") : null,
+        montoNeto,
+        montoIva,
+        montoTotal,
+        concepto,
+        observaciones,
+        ...(imagenData
+          ? {
+              imagenMime,
+              // Prisma Bytes + TS 5.x: Buffer/Uint8Array genérico necesita cast
+              imagenData: Buffer.from(imagenData) as unknown as Uint8Array<ArrayBuffer>,
+            }
+          : {}),
+      },
+      include: { proveedor: { select: { id: true, nombre: true } } },
+    });
+
+    await tx.proveedor.update({
+      where: { id: proveedorId },
+      data: { deudaActual: { increment: montoTotal } },
+    });
+
+    for (const item of items) {
+      const subtotal =
+        item.subtotal > 0
+          ? item.subtotal
+          : Math.round(item.cantidad * item.precioUnitario * 100) / 100;
+
+      let materiaPrimaId: string | null = null;
+      if (actualizarStock) {
+        const mp = await resolverMateriaPrima(tx, item.descripcion, item.unidad);
+        materiaPrimaId = mp.id;
+        await entradaStockCompra(tx, {
+          materiaPrimaId: mp.id,
+          cantidad: item.cantidad,
+          facturaProveedorId: creada.id,
+          usuarioId: session.user.id,
+          observaciones: `Compra factura ${numeroFactura}`,
+        });
+      }
+
+      await tx.facturaProveedorItem.create({
+        data: {
+          facturaId: creada.id,
+          materiaPrimaId,
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          unidad: item.unidad,
+          precioUnitario: item.precioUnitario,
+          subtotal,
+        },
+      });
+    }
+
+    return creada;
   });
 
-  return NextResponse.json({ data: { ...factura, montoNeto: Number(factura.montoNeto), montoIva: Number(factura.montoIva), montoTotal: Number(factura.montoTotal) } }, { status: 201 });
+  return NextResponse.json(
+    {
+      data: {
+        ...factura,
+        imagenData: undefined,
+        montoNeto: Number(factura.montoNeto),
+        montoIva: Number(factura.montoIva),
+        montoTotal: Number(factura.montoTotal),
+        cantidadItems: items.length,
+      },
+    },
+    { status: 201 }
+  );
 }

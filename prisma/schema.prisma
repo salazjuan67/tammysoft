@@ -342,15 +342,82 @@ model FacturaProveedor {
   concepto          String
   estado            EstadoFacturaProveedor @default(PENDIENTE)
   observaciones     String?
+  // Foto de la factura (JPEG/PNG/WebP) para OCR y consulta.
+  imagenMime        String?
+  imagenData        Bytes?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
   proveedor         Proveedor              @relation(fields: [proveedorId], references: [id])
   pagos             PagoProveedor[]
+  items             FacturaProveedorItem[]
+  movimientosStock  MovimientoStock[]
 
   @@index([proveedorId, estado])
   @@index([fechaEmision])
   @@map("facturas_proveedores")
+}
+
+model MateriaPrima {
+  id           String   @id @default(cuid())
+  nombre       String
+  unidad       String   @default("UN") // KG, L, UN, GR, ML, CAJA...
+  stockActual  Decimal  @db.Decimal(12, 3) @default(0)
+  stockMinimo  Decimal  @db.Decimal(12, 3) @default(0)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  itemsFactura FacturaProveedorItem[]
+  movimientos  MovimientoStock[]
+
+  @@unique([nombre, unidad])
+  @@index([nombre])
+  @@map("materias_primas")
+}
+
+model FacturaProveedorItem {
+  id              String   @id @default(cuid())
+  facturaId       String
+  materiaPrimaId  String?
+  descripcion     String
+  cantidad        Decimal  @db.Decimal(12, 3)
+  unidad          String   @default("UN")
+  precioUnitario  Decimal  @db.Decimal(12, 2) @default(0)
+  subtotal        Decimal  @db.Decimal(12, 2) @default(0)
+  createdAt       DateTime @default(now())
+
+  factura         FacturaProveedor @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  materiaPrima    MateriaPrima?    @relation(fields: [materiaPrimaId], references: [id])
+
+  @@index([facturaId])
+  @@index([materiaPrimaId])
+  @@map("factura_proveedor_items")
+}
+
+enum TipoMovimientoStock {
+  ENTRADA_COMPRA
+  SALIDA_PRODUCCION
+  AJUSTE
+}
+
+model MovimientoStock {
+  id               String              @id @default(cuid())
+  materiaPrimaId   String
+  tipo             TipoMovimientoStock
+  cantidad         Decimal             @db.Decimal(12, 3)
+  saldoResultante  Decimal             @db.Decimal(12, 3)
+  facturaProveedorId String?
+  observaciones    String?
+  usuarioId        String?
+  createdAt        DateTime            @default(now())
+
+  materiaPrima     MateriaPrima        @relation(fields: [materiaPrimaId], references: [id])
+  facturaProveedor FacturaProveedor?   @relation(fields: [facturaProveedorId], references: [id], onDelete: SetNull)
+
+  @@index([materiaPrimaId, createdAt])
+  @@index([facturaProveedorId])
+  @@map("movimientos_stock")
 }
 
 model PagoProveedor {
