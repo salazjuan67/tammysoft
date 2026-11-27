@@ -86,6 +86,7 @@ export default function FacturasProveedoresPage() {
   const [saving, setSaving] = useState(false);
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [usoIa, setUsoIa] = useState(false); // foto obligatoria solo si se usó OCR
   const [items, setItems] = useState<ItemForm[]>([]);
   const [actualizarStock, setActualizarStock] = useState(true);
   const [leyendoOcr, setLeyendoOcr] = useState(false);
@@ -139,6 +140,7 @@ export default function FacturasProveedoresPage() {
     setEditando(null);
     setItems([]);
     setActualizarStock(true);
+    setUsoIa(false);
     limpiarImagen();
     setShowModal(true);
   }
@@ -154,6 +156,7 @@ export default function FacturasProveedoresPage() {
       concepto: f.concepto, observaciones: f.observaciones ?? "",
     } as typeof emptyForm);
     setItems([]);
+    setUsoIa(false);
     limpiarImagen();
     setEditando(f.id); setShowModal(true);
   }
@@ -219,6 +222,7 @@ export default function FacturasProveedoresPage() {
         }))
       );
       const nItems = (d.items ?? []).length;
+      setUsoIa(true);
       toast({
         title: "Factura leída",
         description: d.proveedorCreado
@@ -254,10 +258,11 @@ export default function FacturasProveedoresPage() {
   async function guardar() {
     if (!form.proveedorId || !form.numeroFactura || !form.fechaEmision || !form.montoNeto || !form.concepto)
       return toast({ title: "Completá los campos obligatorios", variant: "destructive" });
-    if (!editando && !imagenFile) {
+    // Foto obligatoria solo si se usó "Leer con IA"
+    if (!editando && usoIa && !imagenFile) {
       return toast({
         title: "Adjuntá la foto de la factura",
-        description: "En un ingreso nuevo la imagen queda guardada junto a la factura.",
+        description: "Si usaste la IA, la imagen tiene que quedar guardada con el ingreso.",
         variant: "destructive",
       });
     }
@@ -291,12 +296,17 @@ export default function FacturasProveedoresPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } else {
-      // Siempre multipart para adjuntar la foto al ingreso
+    } else if (imagenFile) {
       const fd = new FormData();
       fd.append("payload", JSON.stringify(payload));
-      fd.append("imagen", imagenFile!);
+      fd.append("imagen", imagenFile);
       res = await fetch("/api/proveedores/facturas", { method: "POST", body: fd });
+    } else {
+      res = await fetch("/api/proveedores/facturas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
     }
 
     const json = await res.json();
@@ -496,7 +506,7 @@ export default function FacturasProveedoresPage() {
                       <Camera className="h-4 w-4 text-pink-600" /> Foto de la factura
                     </p>
                     <p className="text-xs text-gray-500">
-                      Subí la foto (obligatoria): la IA completa los datos y la imagen queda guardada en el ingreso.
+                      Opcional en carga manual. Si usás &quot;Leer con IA&quot;, la foto queda guardada con el ingreso.
                     </p>
                   </div>
                   <Button type="button" size="sm" onClick={leerConIA} disabled={!imagenFile || leyendoOcr}>
