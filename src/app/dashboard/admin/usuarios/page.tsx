@@ -15,6 +15,7 @@ interface UsuarioSimple {
   id: string;
   email: string;
   nombre: string;
+  telefono?: string | null;
   rol: string;
   activo: boolean;
   createdAt: string;
@@ -23,6 +24,7 @@ interface UsuarioSimple {
 const ROL_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
   OPERARIO: "Operario",
+  PRODUCCION: "Producción y Pedidos",
   VENDEDOR: "Vendedor",
   CLIENTE: "Cliente",
 };
@@ -30,6 +32,7 @@ const ROL_LABELS: Record<string, string> = {
 const ROL_BADGE: Record<string, React.ReactNode> = {
   ADMIN: <Badge variant="default">Admin</Badge>,
   OPERARIO: <Badge variant="info">Operario</Badge>,
+  PRODUCCION: <Badge variant="info">Producción</Badge>,
   VENDEDOR: <Badge variant="warning">Vendedor</Badge>,
   CLIENTE: <Badge variant="secondary">Cliente</Badge>,
 };
@@ -42,6 +45,7 @@ export default function UsuariosPage() {
 
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("VENDEDOR");
   const [saving, setSaving] = useState(false);
@@ -59,13 +63,13 @@ export default function UsuariosPage() {
 
   function abrirNuevo() {
     setEditando(null);
-    setNombre(""); setEmail(""); setPassword(""); setRol("VENDEDOR");
+    setNombre(""); setEmail(""); setTelefono(""); setPassword(""); setRol("VENDEDOR");
     setShowForm(true);
   }
 
   function abrirEditar(u: UsuarioSimple) {
     setEditando(u);
-    setNombre(u.nombre); setEmail(u.email); setPassword(""); setRol(u.rol);
+    setNombre(u.nombre); setEmail(u.email); setTelefono(u.telefono ?? ""); setPassword(""); setRol(u.rol);
     setShowForm(true);
   }
 
@@ -89,7 +93,7 @@ export default function UsuariosPage() {
     if (!nombre || !email) { toast({ title: "Nombre y email son requeridos", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { nombre, email, rol, activo: true };
+      const body: Record<string, unknown> = { nombre, email, telefono: telefono || null, rol, activo: true };
       if (password) body.password = password;
       const url = editando ? `/api/usuarios/${editando.id}` : "/api/usuarios";
       const method = editando ? "PUT" : "POST";
@@ -125,6 +129,7 @@ export default function UsuariosPage() {
                   <tr className="border-b bg-gray-50">
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Nombre</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Teléfono</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Rol</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Acciones</th>
@@ -135,7 +140,8 @@ export default function UsuariosPage() {
                     <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{u.nombre}</td>
                       <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                      <td className="px-4 py-3">{ROL_BADGE[u.rol]}</td>
+                      <td className="px-4 py-3 text-gray-600">{u.telefono || "—"}</td>
+                      <td className="px-4 py-3">{ROL_BADGE[u.rol] ?? u.rol}</td>
                       <td className="px-4 py-3">
                         <Badge variant={u.activo ? "success" : "secondary"}>{u.activo ? "Activo" : "Inactivo"}</Badge>
                       </td>
@@ -180,6 +186,10 @@ export default function UsuariosPage() {
             <div className="space-y-2">
               <Label>Email *</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="11..." />
             </div>
             <div className="space-y-2">
               <Label>{editando ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña *"}</Label>

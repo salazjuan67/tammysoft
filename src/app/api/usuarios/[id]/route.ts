@@ -14,14 +14,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const parsed = usuarioSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { nombre, email, password, rol, activo, clienteId } = parsed.data;
-  const data: Record<string, unknown> = { nombre, email, rol, activo, clienteId: clienteId || null };
+  const { nombre, email, password, telefono, rol, activo, clienteId } = parsed.data;
+  const data: Record<string, unknown> = {
+    nombre,
+    email,
+    telefono: telefono || null,
+    rol,
+    activo,
+    clienteId: clienteId || null,
+  };
   if (password) data.passwordHash = await bcrypt.hash(password, 12);
 
   const usuario = await db.usuario.update({
     where: { id },
     data,
-    select: { id: true, email: true, nombre: true, rol: true, activo: true },
+    select: { id: true, email: true, nombre: true, telefono: true, rol: true, activo: true },
   });
 
   return NextResponse.json({ data: usuario });

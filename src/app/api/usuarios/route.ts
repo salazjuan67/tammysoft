@@ -11,7 +11,7 @@ export async function GET() {
 
   const usuarios = await db.usuario.findMany({
     orderBy: { nombre: "asc" },
-    select: { id: true, email: true, nombre: true, rol: true, activo: true, createdAt: true, clienteId: true },
+    select: { id: true, email: true, nombre: true, telefono: true, rol: true, activo: true, createdAt: true, clienteId: true },
   });
 
   return NextResponse.json({ data: usuarios });
@@ -26,15 +26,23 @@ export async function POST(req: NextRequest) {
   const parsed = usuarioSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { nombre, email, password, rol, activo, clienteId } = parsed.data;
+  const { nombre, email, password, telefono, rol, activo, clienteId } = parsed.data;
   if (!password) return NextResponse.json({ error: "La contraseña es requerida para nuevos usuarios" }, { status: 400 });
 
   const passwordHash = await bcrypt.hash(password, 12);
 
   try {
     const usuario = await db.usuario.create({
-      data: { nombre, email, passwordHash, rol, activo, clienteId: clienteId || null },
-      select: { id: true, email: true, nombre: true, rol: true, activo: true },
+      data: {
+        nombre,
+        email,
+        passwordHash,
+        telefono: telefono || null,
+        rol,
+        activo,
+        clienteId: clienteId || null,
+      },
+      select: { id: true, email: true, nombre: true, telefono: true, rol: true, activo: true },
     });
     return NextResponse.json({ data: usuario }, { status: 201 });
   } catch {

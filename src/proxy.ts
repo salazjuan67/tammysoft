@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const STAFF_ROLES = ["ADMIN", "OPERARIO", "VENDEDOR"];
+const STAFF_ROLES = ["ADMIN", "OPERARIO", "PRODUCCION", "VENDEDOR"];
 const CLIENT_ROLES = ["CLIENTE"];
+const PRODUCCION_ALLOWED = ["/dashboard/pedidos", "/dashboard/produccion"];
 
 const publicRoutes = ["/auth/login", "/auth/error", "/cliente/login", "/demo-login"];
 const apiPublicRoutes = ["/api/auth"];
@@ -13,8 +14,10 @@ const roleRoutes: Record<string, string[]> = {
   "/dashboard/admin": ["ADMIN"],
   "/dashboard/reportes": ["ADMIN", "OPERARIO"],
   "/dashboard/cobranza": ["ADMIN", "OPERARIO"],
-  "/dashboard/produccion": ["ADMIN", "OPERARIO"],
+  "/dashboard/produccion": ["ADMIN", "OPERARIO", "PRODUCCION"],
   "/dashboard/monitor": ["ADMIN", "OPERARIO"],
+  "/dashboard/solicitudes": ["ADMIN", "OPERARIO"],
+  "/dashboard/facturacion": ["ADMIN", "OPERARIO", "VENDEDOR"],
 };
 
 export default auth(function middleware(req: NextRequest & { auth: { user: { rol: string } } | null }) {
@@ -68,6 +71,15 @@ export default auth(function middleware(req: NextRequest & { auth: { user: { rol
         return NextResponse.redirect(new URL("/cliente/dashboard", req.url));
       }
       return NextResponse.redirect(new URL("/auth/login", req.url));
+    }
+
+    // PRODUCCION: only Pedidos + Producción
+    if (userRol === "PRODUCCION") {
+      const allowed = PRODUCCION_ALLOWED.some((r) => pathname.startsWith(r));
+      if (!allowed) {
+        return NextResponse.redirect(new URL("/dashboard/pedidos", req.url));
+      }
+      return NextResponse.next();
     }
 
     // Fine-grained role access within dashboard

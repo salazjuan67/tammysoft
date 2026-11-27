@@ -121,7 +121,8 @@ export const usuarioSchema = z.object({
   nombre: z.string().min(2),
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional(),
-  rol: z.enum(["ADMIN", "OPERARIO", "VENDEDOR", "CLIENTE"]),
+  telefono: z.string().optional().nullable(),
+  rol: z.enum(["ADMIN", "OPERARIO", "PRODUCCION", "VENDEDOR", "CLIENTE"]),
   activo: z.boolean().default(true),
   clienteId: z.string().optional(),
 });

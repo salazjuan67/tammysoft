@@ -34,7 +34,7 @@ async function getComandaDelDia(fecha: Date) {
 export default async function ProduccionPage() {
   const session = await auth();
   const userRol = (session?.user as { rol: string })?.rol;
-  if (!["ADMIN", "OPERARIO"].includes(userRol)) {
+  if (!["ADMIN", "OPERARIO", "PRODUCCION"].includes(userRol ?? "")) {
     return <div className="py-12 text-center text-gray-500">Sin permisos para acceder a producción</div>;
   }
 

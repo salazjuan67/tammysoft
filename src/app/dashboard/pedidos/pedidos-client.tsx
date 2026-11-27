@@ -240,7 +240,8 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
   }
 
   const totalPages = Math.ceil(total / pageSize);
-  const esAdmin = userRol === "ADMIN" || userRol === "OPERARIO";
+  const esAdmin = userRol === "ADMIN" || userRol === "OPERARIO" || userRol === "PRODUCCION";
+  const puedeEditarSiempre = userRol === "ADMIN" || userRol === "OPERARIO" || userRol === "PRODUCCION";
   const hayFiltroFecha = fechaDesde || fechaHasta;
   const seleccionables = filteredPedidos.filter((p) => p.estado !== "CANCELADO" && p.estado !== "ENTREGADO");
   const todosSeleccionados = seleccionables.length > 0 && seleccionables.every((p) => seleccionados.has(p.id));
@@ -564,7 +565,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                                 <Undo2 className="h-4 w-4" />
                               </Button>
                             )}
-                            {!esCancelado && !esEntregado && (userRol === "ADMIN" || puedeEditar) && (
+                            {!esCancelado && !esEntregado && (puedeEditarSiempre || puedeEditar) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -574,7 +575,7 @@ export function PedidosClient({ clientes, categorias, userRol }: PedidosClientPr
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             )}
-                            {!esCancelado && !esEntregado && (userRol === "ADMIN" || puedeEditar) && (
+                            {!esCancelado && !esEntregado && (puedeEditarSiempre || puedeEditar) && (
                               <Button
                                 variant="ghost"
                                 size="icon"

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const userRol = (session.user as { rol: string }).rol;
-  if (!["ADMIN", "OPERARIO"].includes(userRol)) {
+  if (!["ADMIN", "OPERARIO", "PRODUCCION"].includes(userRol)) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 

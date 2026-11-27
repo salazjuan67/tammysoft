@@ -42,13 +42,13 @@ const navItems: NavItem[] = [
     href: "/dashboard/pedidos",
     label: "Pedidos",
     icon: <ShoppingCart className="h-5 w-5" />,
-    roles: ["ADMIN", "OPERARIO", "VENDEDOR", "CLIENTE"],
+    roles: ["ADMIN", "OPERARIO", "PRODUCCION", "VENDEDOR", "CLIENTE"],
   },
   {
     href: "/dashboard/produccion",
     label: "Producción",
     icon: <ChefHat className="h-5 w-5" />,
-    roles: ["ADMIN", "OPERARIO"],
+    roles: ["ADMIN", "OPERARIO", "PRODUCCION"],
   },
   {
     href: "/dashboard/monitor",

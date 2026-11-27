@@ -11,6 +11,7 @@ datasource db {
 enum Rol {
   ADMIN
   OPERARIO
+  PRODUCCION
   VENDEDOR
   CLIENTE
 }
@@ -73,6 +74,7 @@ model Usuario {
   email        String   @unique
   passwordHash String
   nombre       String
+  telefono     String?
   rol          Rol      @default(CLIENTE)
   activo       Boolean  @default(true)
   createdAt    DateTime @default(now())
