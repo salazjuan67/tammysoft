@@ -115,14 +115,16 @@ async function main() {
       html: htmlBienvenida(dest.nombre, dest.email, dest.password, loginUrl),
     });
 
+    console.log(`${usuario.nombre} <${usuario.email}>`);
+    console.log(`  pass: ${dest.password}`);
+
     if (error) {
-      console.error(`ERROR ${usuario.email}:`, error);
+      console.error(`  MAIL ERROR:`, error);
+      console.log("");
       continue;
     }
 
-    console.log(`OK  ${usuario.nombre} <${usuario.email}>`);
-    console.log(`    pass: ${dest.password}`);
-    console.log(`    id:   ${data?.id ?? "—"}\n`);
+    console.log(`  mail: OK (${data?.id ?? "—"})\n`);
   }
 }
 
