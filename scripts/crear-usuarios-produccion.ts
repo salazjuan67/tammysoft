@@ -1,13 +1,16 @@
 /**
  * Crea / actualiza usuarios de Producción y Pedidos (Luisa y Delia).
- * Uso: npx tsx scripts/crear-usuarios-produccion.ts
+ * Uso: npx tsx --env-file=.env.local scripts/crear-usuarios-produccion.ts
  * Imprime las contraseñas temporales una sola vez.
  */
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 
-const db = new PrismaClient();
+const db = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL!, max: 2 }),
+});
 
 function tempPassword(prefix: string) {
   return `${prefix}-${randomBytes(4).toString("hex")}`;
@@ -29,6 +32,10 @@ const USUARIOS = [
 ] as const;
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("Falta DATABASE_URL (usá --env-file=.env.local)");
+  }
+
   console.log("\n=== Usuarios PRODUCCION (Pedidos + Producción) ===\n");
   for (const u of USUARIOS) {
     const passwordHash = await bcrypt.hash(u.password, 12);
