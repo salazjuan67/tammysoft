@@ -33,23 +33,49 @@ export async function POST(req: NextRequest) {
   try {
     const extraido = await extraerFacturaConGemini(base64, mime);
 
-    // Intentar matchear proveedor por nombre
-    let proveedorId: string | null = null;
-    if (extraido.proveedorNombre) {
-      const proveedor = await db.proveedor.findFirst({
-        where: {
-          activo: true,
-          nombre: { contains: extraido.proveedorNombre.trim(), mode: "insensitive" },
-        },
-        select: { id: true, nombre: true },
+    // Buscar proveedor por nombre; si no existe, crearlo y devolverlo seleccionado.
+    let proveedor: { id: string; nombre: string } | null = null;
+    let proveedorCreado = false;
+    const nombreProv = extraido.proveedorNombre?.trim();
+    if (nombreProv) {
+      proveedor = await db.proveedor.findFirst({
+        where: { nombre: { equals: nombreProv, mode: "insensitive" } },
+        select: { id: true, nombre: true, activo: true },
+      }).then(async (p) => {
+        if (!p) return null;
+        if (!p.activo) {
+          await db.proveedor.update({ where: { id: p.id }, data: { activo: true } });
+        }
+        return { id: p.id, nombre: p.nombre };
       });
-      if (proveedor) proveedorId = proveedor.id;
+
+      if (!proveedor) {
+        // Match flexible por contiene (ej. razón social larga en la factura)
+        proveedor = await db.proveedor.findFirst({
+          where: {
+            activo: true,
+            nombre: { contains: nombreProv, mode: "insensitive" },
+          },
+          select: { id: true, nombre: true },
+        });
+      }
+
+      if (!proveedor) {
+        const creado = await db.proveedor.create({
+          data: { nombre: nombreProv, activo: true },
+          select: { id: true, nombre: true },
+        });
+        proveedor = creado;
+        proveedorCreado = true;
+      }
     }
 
     return NextResponse.json({
       data: {
         ...extraido,
-        proveedorId,
+        proveedorId: proveedor?.id ?? null,
+        proveedor,
+        proveedorCreado,
       },
     });
   } catch (e) {

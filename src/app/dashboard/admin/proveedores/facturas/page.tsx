@@ -185,6 +185,18 @@ export default function FacturasProveedoresPage() {
       const iva = Number(d.montoIva) || 0;
       const total = Number(d.montoTotal) || neto + iva;
       const tasa = neto > 0 ? String(Math.round((iva / neto) * 1000) / 1000) : form.tasaIva;
+
+      // Si el OCR creó o encontró proveedor, lo sumamos a la lista y lo seleccionamos
+      if (d.proveedor?.id) {
+        setProveedores((prev) =>
+          prev.some((p) => p.id === d.proveedor.id)
+            ? prev
+            : [...prev, { id: d.proveedor.id, nombre: d.proveedor.nombre }].sort((a, b) =>
+                a.nombre.localeCompare(b.nombre)
+              )
+        );
+      }
+
       setForm((f) => ({
         ...f,
         proveedorId: d.proveedorId || f.proveedorId,
@@ -206,11 +218,14 @@ export default function FacturasProveedoresPage() {
           subtotal: String(i.subtotal ?? 0),
         }))
       );
+      const nItems = (d.items ?? []).length;
       toast({
         title: "Factura leída",
-        description: d.proveedorId
-          ? `${(d.items ?? []).length} ítem(s) detectados`
-          : `Se leyeron ${(d.items ?? []).length} ítem(s). Seleccioná el proveedor si no coincidió.`,
+        description: d.proveedorCreado
+          ? `Proveedor "${d.proveedor?.nombre}" creado y seleccionado · ${nItems} ítem(s). La foto se guarda al confirmar.`
+          : d.proveedorId
+            ? `Proveedor seleccionado · ${nItems} ítem(s). La foto se guarda al confirmar.`
+            : `${nItems} ítem(s). Seleccioná el proveedor si hace falta.`,
       });
     } finally {
       setLeyendoOcr(false);
@@ -239,6 +254,13 @@ export default function FacturasProveedoresPage() {
   async function guardar() {
     if (!form.proveedorId || !form.numeroFactura || !form.fechaEmision || !form.montoNeto || !form.concepto)
       return toast({ title: "Completá los campos obligatorios", variant: "destructive" });
+    if (!editando && !imagenFile) {
+      return toast({
+        title: "Adjuntá la foto de la factura",
+        description: "En un ingreso nuevo la imagen queda guardada junto a la factura.",
+        variant: "destructive",
+      });
+    }
 
     setSaving(true);
     const payload = {
@@ -269,17 +291,12 @@ export default function FacturasProveedoresPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } else if (imagenFile) {
+    } else {
+      // Siempre multipart para adjuntar la foto al ingreso
       const fd = new FormData();
       fd.append("payload", JSON.stringify(payload));
-      fd.append("imagen", imagenFile);
+      fd.append("imagen", imagenFile!);
       res = await fetch("/api/proveedores/facturas", { method: "POST", body: fd });
-    } else {
-      res = await fetch("/api/proveedores/facturas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
     }
 
     const json = await res.json();
@@ -478,7 +495,9 @@ export default function FacturasProveedoresPage() {
                     <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
                       <Camera className="h-4 w-4 text-pink-600" /> Foto de la factura
                     </p>
-                    <p className="text-xs text-gray-500">Subí una foto y Gemini completa los datos e ítems.</p>
+                    <p className="text-xs text-gray-500">
+                      Subí la foto (obligatoria): la IA completa los datos y la imagen queda guardada en el ingreso.
+                    </p>
                   </div>
                   <Button type="button" size="sm" onClick={leerConIA} disabled={!imagenFile || leyendoOcr}>
                     <Sparkles className="h-3.5 w-3.5" />
